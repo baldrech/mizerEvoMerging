@@ -110,8 +110,15 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                     initial_n_bb = params@initial_n_bb,
                     initial_n_aa = params@initial_n_aa,
                     shiny_progress = NULL, 
-                    diet_steps=10, ...) {  #default number of years (steps?) to calcualte diet for 
-    validObject(params)
+                    diet_steps=10,
+                    #RF ####
+                    mu = 1, resident = NULL, extinct = TRUE, Rmax = TRUE, prevSim = NULL,
+                    OptMutant = "M1", M3List = NULL, checkpoint, print_it = TRUE, predMort = NULL,
+                    ...) {  #default number of years (steps?) to calcualte diet for 
+    # validObject(params)
+  
+  umbrella = FALSE # parameter that says if there are still things alive # might get rid of it
+  t_save = dt
     
     # Do we need to create an effort array?
     if (is.vector(effort)) {
@@ -162,7 +169,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         stop("The time dimname of the effort argument should be increasing.")
     }
     
-    t_max <- time_effort[length(time_effort)]
+    t_max <- time_effort[length(time_effort)] # RF might be source of bugs
     # Blow up effort so that rows are dt spaced
     time_effort_dt <- seq(from = time_effort[1], to = t_max, by = dt)
     effort_dt <- t(array(NA, dim = c(length(time_effort_dt), dim(effort)[2]), dimnames=list(time = time_effort_dt, dimnames(effort)[[2]])))
@@ -170,9 +177,8 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         effort_dt[,time_effort_dt >= time_effort[i]] <- effort[i,]
     }
     effort_dt <- t(effort_dt)
-    
-    ## expand temperature vector in the required number of timesteps 
-    ###TODO?####
+
+    ## Temperature set-up
     ## at the moment we just repeat yearly values for the entire year, no smothing or interpolation is used
     if (length(temperature) != t_max) {
       stop("your temperature input vector is not the same length as t_max")
@@ -183,7 +189,6 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     # need smoothing?
     # myData <- data.frame("y" = time_temperature_dt, "x" = x_axis) # create dataframe for smoothing (not sure if needed)
     # temperature_dt <- matrix(predict(loess(y~x, myData, span = 0.1)), dimnames = list(x_axis, "temperature")) # temperature vector following dt
-    
     temperature_dt <- matrix(time_temperature_dt, dimnames = list(x_axis, "temperature")) # without smoothing
 
     #arrays with scalar values for all time, species and size
@@ -192,30 +197,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     morTempScalar <- array(NA, dim = c(dim(params@species_params)[1], length(params@w), length(temperature_dt)), dimnames = list(params@species_params$species,params@w,temperature_dt)) 
     intTempScalar <- array(NA, dim = c(dim(params@species_params)[1], length(params@w), length(temperature_dt)), dimnames = list(params@species_params$species,params@w,temperature_dt)) 
     
-# for(iSpecies in as.numeric(params@species_params$species)) # version with deactivation cost
-#     {
-#   metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt, t_ref = t_ref, 
-#                                         Ea = params@species_params$ea_met[iSpecies], Ed = params@species_params$ed_met[iSpecies],
-#                                         c_a = params@species_params$ca_met[iSpecies], c_d = params@species_params$cd_met[iSpecies], 
-#                                         tmax = params@species_params$tmax_met[iSpecies], w = params@w)
-#   
-#   matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt, t_ref = t_ref, 
-#                                         Ea = params@species_params$ea_mat[iSpecies], Ed = params@species_params$ed_mat[iSpecies],
-#                                         c_a = params@species_params$ca_mat[iSpecies], c_d = params@species_params$cd_mat[iSpecies], 
-#                                         tmax = params@species_params$tmax_mat[iSpecies], w = params@w)
-#   
-#   morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt, t_ref = t_ref, 
-#                                         Ea = params@species_params$ea_mor[iSpecies], Ed = params@species_params$ed_mor[iSpecies],
-#                                         c_a = params@species_params$ca_mor[iSpecies], c_d = params@species_params$cd_mor[iSpecies], 
-#                                         tmax = params@species_params$tmax_mor[iSpecies], w = params@w)
-#   
-#   intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt, t_ref = t_ref, 
-#                                         Ea = params@species_params$ea_int[iSpecies], Ed = params@species_params$ed_int[iSpecies],
-#                                         c_a = params@species_params$ca_int[iSpecies], c_d = params@species_params$cd_int[iSpecies], 
-#                                         tmax = params@species_params$tmax_int[iSpecies], w = params@w)
-#     }
-
-    for(iSpecies in 1:dim(params@species_params)[1])
+    for(iSpecies in 1:dim(params@species_params)[1]) # fill the scalars arrays
     {
       metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_met[iSpecies], 
@@ -233,7 +215,8 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                                             Ea = params@species_params$ea_int[iSpecies], 
                                             c_a = params@species_params$ca_int[iSpecies],  w = params@w)
     }
-
+# print("dim(intTempScalar)=")
+# print(dim(intTempScalar))
     # Make the MizerSim object with the right size
     # We only save every t_save steps
     # Divisibility test needs to be careful about machine rounding errors,
@@ -254,12 +237,13 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     sim@matTempScalar <- matTempScalar
     sim@morTempScalar <- morTempScalar
     sim@intTempScalar <- intTempScalar
+    
+    # RF ####
+    if(dim(sim@n)[2] == 1) dimnames(sim@n)$sp = 1
+    else   dimnames(sim@n)$sp = rownames(initial_n) # the object created by mizer doesnt keep in memomry my mutant names, so Im putting them here
+    
 
-    # Set initial population
-    sim@n[1,,] <- initial_n 
-    sim@n_pp[1,] <- initial_n_pp
-    sim@n_bb[1,] <- initial_n_bb
-    sim@n_aa[1,] <- initial_n_aa
+
 
     # Handy things
     no_sp <- nrow(sim@params@species_params) # number of species
@@ -287,6 +271,17 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     B <- matrix(0, nrow = no_sp, ncol = no_w)
     S <- matrix(0, nrow = no_sp, ncol = no_w)
     
+    
+    # Set initial population
+    if (missing(prevSim) == TRUE) # RF ####
+    {
+      # print("dim(sim@n)")
+      # print(dim(sim@n))
+    sim@n[1,,] <- initial_n # probably need to change/tweak this bit
+    sim@n_pp[1,] <- initial_n_pp
+    sim@n_bb[1,] <- initial_n_bb
+    sim@n_aa[1,] <- initial_n_aa
+    
     # initialise n and nPP
     # We want the first time step only but cannot use drop as there may only be a single species
     n <- array(sim@n[1, , ], dim = dim(sim@n)[2:3])
@@ -294,25 +289,74 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     n_pp <- sim@n_pp[1, ]
     n_bb <- sim@n_bb[1, ]
     n_aa <- sim@n_aa[1, ]
-
+    
     t_steps <- dim(effort_dt)[1] - 1
-    # Set up progress bar
-    pb <- progress::progress_bar$new(
-        format = "[:bar] :percent ETA: :eta",
-        total = length(t_dimnames_index), width = 60)
-    if (hasArg(shiny_progress)) {
-        # We have been passed a shiny progress object
-        shiny_progress$set(message = "Running simulation", value = 0)
-        proginc <- 1/length(t_dimnames_index)
+    # t_steps <- dim(effort_dt)[1] # RF ####
+    init = 1 # for the for loop
     }
+
+    else # this loop allow to continue the simulation where it stopped previously (on a time step point of view), if it has
+    {
+      # i_stop is not the real time step that the user enter, i_stop = i_step/dt
+      # I'm going to start at the next i_step then
+      t_init = prevSim$i_stop# round up / 
+      
+      # Set initial population
+      # no need to do this as it is the final version, just take the previous matrix
+      dimnames(sim@n)[[2]] <- rownames(initial_n) # updating the names accordingly (could do that during the object creation)
+      # print("dims")
+      # print(dim(sim@n))
+      # print(dim(prevSim$n))
+      sim@n[t_init, , ] <- prevSim$n # name bug here
+      sim@n_pp[t_init, ] <- prevSim$n_pp
+      sim@n_bb[t_init,] <- prevSim$n_bb
+      sim@n_aa[t_init,] <- prevSim$n_aa
+
+      # print(sim@n[,,1])
+      # sim@n <- prevSim$n
+      # sim@n_pp <- prevSim$n_pp
+      # sim@n_bb <- prevSim$n_bb
+      # sim@n_aa <- prevSim$n_aa
+
+
+      # initialise n and nPP (pp is background)
+      # We want the first time step only but cannot use drop as there may only be a single species
+      n <- array(sim@n[t_init,,],dim=dim(sim@n)[2:3]) #take the first line of sim (for each weight) and put it in the matrix of right dimension (= sim@n at t=1)
+      dimnames(n) <- dimnames(sim@n)[2:3] # now it has the weights as names
+      n_pp <- sim@n_pp[t_init,] # no need for an array, there is only one line
+      n_bb <- sim@n_bb[t_init, ]
+      n_aa <- sim@n_aa[t_init, ]
+      
+      t_steps <- dim(effort_dt)[1] - 1 #time steps = max number of dt (not only the 100 saved)
+      init = t_init # Simulation restart at last time step as the next time_step is calculated during the loop
+      
+      # print(n)
+      
+    }
+    # the sim is fully initialised now, time to move forwards           
+    #time projection
     
 
-    # If storing diet compisiton, make diet_comp_all array ahead of main loop 
+    # Set up progress bar
+    # pb <- progress::progress_bar$new(
+    #     format = "[:bar] :percent ETA: :eta",
+    #     total = length(t_dimnames_index), width = 60)
+    # if (hasArg(shiny_progress)) {
+    #     # We have been passed a shiny progress object
+    #     shiny_progress$set(message = "Running simulation", value = 0)
+    #     proginc <- 1/length(t_dimnames_index)
+    # }
+    
+
+    # If storing diet composition, make diet_comp_all array ahead of main loop 
     if (diet_steps>0){
       diet_comp_all<- array(0, dim(sim@diet_comp))
     }
+    
+    # cat(sprintf("number of time_step = %i\n",t_steps))
 
-    for (i_time in 1:t_steps) {
+    for (i_time in init:t_steps) {
+      # cat(sprintf("i_time = %i\n",i_time))
       # print(i_time)
         # Do it piece by piece to save repeatedly calling methods
         # Calculate amount E_{a,i}(w) of available food
@@ -388,7 +432,8 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         # Boundary condition upstream end (recruitment)
         B[w_min_idx_array_ref] <- 1+e_growth[w_min_idx_array_ref]*dt/sim@params@dw[sim@params@w_min_idx]+z[w_min_idx_array_ref]*dt
         # Update first size group of n
-        n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdd*dt/sim@params@dw[sim@params@w_min_idx]) / B[w_min_idx_array_ref]
+        if(RMAX) n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdd*dt/sim@params@dw[sim@params@w_min_idx]) / B[w_min_idx_array_ref]
+        else n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdi*dt/sim@params@dw[sim@params@w_min_idx]) / B[w_min_idx_array_ref]
         # Update n
         # for (i in 1:no_sp) # number of species assumed small, so no need to vectorize this loop over species
         #     for (j in (sim@params@w_min_idx[i]+1):no_w)
@@ -421,6 +466,59 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         n_aa[sim@params@initial_n_aa == 0] <- 0 # destroy what's below (and above) threshold sizes
         ##AAsp##
         
+        # RF #### Extinction
+        if (extinct == TRUE)
+        {
+          extinction = 1e-30
+          # remove all rows with non-finite values
+          n[!rowSums(!is.finite(n)), ]
+          # replace all non-finite values with 1e-30 (not 0 but lower than extinction threshold)
+          n[!is.finite(n)] <- 1e-30
+          
+          for (i in 1:no_sp)
+          {
+            if (sum(n[i,]) < extinction &
+                0 < sum(n[i,]))
+              # if species abundance under extinction threshold but not already extinct, kill it
+            {
+              n[i,] = 0
+              # find the name of the species going extinct
+              toto = which(sim@params@species_params$ecotype == rownames(n)[i])
+              
+              if (sim@params@species_params$extinct[toto] == FALSE)
+                # security for bugs
+                if (print_it) cat(
+                  sprintf(
+                    "Extinction of species %s at time %s\n",
+                    sim@params@species_params$ecotype[toto],
+                    i_time
+                  )
+                )
+              
+              else if (sim@params@species_params$extinct[toto] != FALSE)
+              {
+                if (print_it)  cat(
+                  sprintf(
+                    "Species %s at time %s is a zombie\n",
+                    sim@params@species_params$ecotype[toto],
+                    i_time
+                  )
+                ) # to check if they come back from the dead
+                sim@params@species_params$erro[toto] = 1 # if this happen it will be noted by a 1 in the sp ID
+              }
+              
+              sim@params@species_params$extinct[toto] <-
+                i_time + (checkpoint - 1) * t_max / dt # update the extinction status
+              #print(sim@params@species_params)
+              if (sim@params@species_params$extinct[toto] < sim@params@species_params$pop[toto])
+                sim@params@species_params$error[toto] = 2 # if this happen it will be noted by a 2 in the sp ID
+            }
+          }
+          if (dim(sim@params@species_params[sim@params@species_params$extinct != FALSE,])[1] == dim(sim@params@species_params)[1])
+            umbrella = TRUE # if this is true, evrything is dead
+        }
+        
+        
         # Store results only every t_step steps.
         store <- t_dimnames_index %in% (i_time + 1)
         if (any(store)) {
@@ -437,7 +535,146 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
             sim@n_aa[which(store), ] <- n_aa
             ##AAsp#
         }
+        
+        # RF ####
+        if (umbrella == TRUE) # in that case nothing is left and the simulation stop
+        {
+          if (print_it) cat(sprintf("Life has left your simulation, game over.\nSimulation stopped at time %s.\n", i_time))
+          return(list(sim,umbrella)) #I just want something size 2
+        }
+        
+        # EVOLUTION TIME
+        mute = FALSE
+        multiple = FALSE
+        switch(OptMutant, # need to clear/update these options
+               
+               M2 = { # default mutation rate, with one mutant max per time step, randomly drawn from every species (not phenoytpes)
+                 if (mu >= sample(1:1000, 1))
+                 {
+                   residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+                   # to block exponential evolution of species, I'm first picking a lineage randomly and then an ecotype in this lineage
+                   lineagePool = unique(residentPool$species)
+                   
+                   if (length(lineagePool) == 1) lineage = lineagePool else lineage = sample(lineagePool, 1)
+                   
+                   residentPool=residentPool[residentPool$species == lineage,]
+                   resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
+                   resident <- residentPool$ecotype[resident] # this is his name now
+                   mute = TRUE
+                 }
+               },
+               M3 = { # if the user define a specific time to mutate, mainly for debugging
+                 for (i in 1:length(M3List[[1]]))
+                 {
+                   if (M3List[[1]][i] == i_time)
+                   {
+                     # old version
+                     #   residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+                     # resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
+                     # resident <- rownames(residentPool)[resident] # this is his name now
+                     #new version
+                     residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+                     #print(residentPool)
+                     # to block exponential evolution of species, I'm first picking a lineage randomly and then an ecotype in this lineage
+                     lineagePool = unique(residentPool$species)
+                     #print(lineagePool)
+                     
+                     if (length(lineagePool) == 1) lineage = lineagePool
+                     
+                     else lineage = sample(lineagePool, 1)
+                     
+                     #print(lineage)
+                     residentPool=residentPool[residentPool$species == lineage,]
+                     #print(residentPool)
+                     resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
+                     #print(resident)
+                     
+                     resident <- residentPool$ecotype[resident]
+                     mute = TRUE
+                   }}
+               },
+               M4 = { # multiple residents at one time, not sure if it still works
+                 residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,]
+                 resident = NULL
+                 for (i in 1:nrow(residentPool))
+                 {
+                   if (mu >= sample(1:1000, 1))
+                   {
+                     resident <- c(resident, rownames(residentPool)[i]) # this is his name now
+                     mute = TRUE
+                   }
+                   if (length(resident) >1) multiple = TRUE
+                 }
+               },
+               M5 = { # pick only one mutant but give a chance to every species
+                 residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+                 #print(residentPool[,c(17,21)])
+                 speciesPool = unique(residentPool$species) # which species are available to produce new phenotypes
+                 challengers <- NULL
+                 for (iSpecies in speciesPool) # do the picking for every species
+                 {
+                   if (mu >= sample(1:1000, 1)) # if mutant happens
+                   {
+                     #print(iSpecies)
+                     #print(residentPool[residentPool$species == iSpecies,]$ecotype)
+                     
+                     if (length(residentPool[residentPool$species == iSpecies,]$ecotype)>1) 
+                     {resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
+                     } else {resident <- residentPool[residentPool$species == iSpecies,]$ecotype}
+                     mute = TRUE
+                     challengers <- c(challengers,resident)
+                   } 
+                 }
+                 if (length(challengers)>1){
+                   cat(sprintf("Possible new phenotypes\n"))
+                   # print(challengers)
+                   resident <- sample(challengers,1) # select only one to mutate (I know I'm lazy)
+                 } else if (length(challengers == 1)) resident <- challengers
+               },
+               {})
+        
+        if (multiple == FALSE)
+        {
+          if (print_it) cat(sprintf(
+            "A mutant from species %s has appeared at time %s\n",
+            resident,
+            i_time
+          ))}
+        
+        else 
+        {
+          if (print_it) cat(sprintf(
+            "Mutants from species %s have appeared at time %s\n",
+            resident,
+            i_time
+          ))}
+        
+        if (mute == TRUE & i_time!=t_steps) { # if  Iget a mutant on last time step I get bugs because the sim restart at last +1 time step
+          # save the data
+          sim_stop = sim
+          # I need to get rid of the first or last line for no overlapping
+          # it will be the first (initial conditions of this sim), but only after the first mutation
+          # t_init +1 is the line number of the initialisation
+          if (missing(prevSim) == FALSE) sim_stop@n[t_init+1,,]<- NA # if it's not the first run, delete the initialisation (first line where the mutant is introduce, easier for pasting later)
+          
+          i_stop = i_time +1 # to conserve the time of the projection to restart later | +1 cause time starts at 0
+          stopList <- list(sim_stop, i_stop, resident,n,n_pp,n_bb,n_aa)
+          names(stopList) <- c("data", "i_stop", "resident","n","n_pp","n_bb","n_aa")
+          
+          if(length(stopList)!=7) cat(sprintf("error in stop list, length is %i\n",length(stopList)))
+          # now I need to leave the projection and keep resident, i_stop and sim_stop
+# print("sim_stop")
+# print(sim@n[,,1])
+          return(stopList)
+        }  
+        
+        
     }
+
+    if (missing(prevSim) == FALSE) sim@n[t_init+1,,]<- NA # need to get rid of the initialisation for the last run before exiting
+    # I'm keeping the if to not have this enable during the initialisation phase
+    # I'm assuming that I have at least one mutant per run
+
     return(sim)
 }
 
