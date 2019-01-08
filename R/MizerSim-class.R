@@ -11,7 +11,7 @@
 # Validity check
 valid_MizerSim <- function(object){
     errors <- character()
-    validObject(object@params)
+    # validObject(object@params)
     # array dimensions
     if (length(dim(object@n)) != 3) {
 	msg <- "n slot must have three dimensions"

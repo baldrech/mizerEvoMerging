@@ -110,7 +110,7 @@ validMizerParams <- function(object) {
         errors <- c(errors, msg)
     }
     if (names(dimnames(object@interaction))[2] != "prey") {
-        msg <- "The first dimension of interaction must be called 'prey'"
+        msg <- "The second dimension of interaction must be called 'prey'"
         errors <- c(errors, msg)
     }
     # w dimension
@@ -145,7 +145,8 @@ validMizerParams <- function(object) {
         dimnames(object@catchability)[[2]],
         dimnames(object@interaction)[[1]],
         dimnames(object@interaction)[[2]]) ==
-        object@species_params$species)) {
+        # object@species_params$species)) { # RF
+        object@species_params$ecotype)) {
         msg <- "The species names of species_params, psi, intake_max, search_vol, metab, mu_b, ft_pred_kernel_e, ft_pred_kernel_p, selectivity, catchability and interaction must all be the same"
         errors <- c(errors, msg)
     }
@@ -663,8 +664,9 @@ multispeciesParams <- function(object, interaction,
                     min_w_aa = 1e-10, kappa_alg = 1e11, lambda_alg = (2 + q - n), w_aa_cutoff = 100, r_aa = 2,
                     t_ref = 10,
                     f0 = 0.6, z0pre = 0.6, z0exp = n - 1) {
-    
-    row.names(object) <- object$species
+  
+    # row.names(object) <- object$species # RF
+    row.names(object) <- object$ecotype
     no_sp <- nrow(object)
     
     if (missing(interaction)) {
@@ -1048,7 +1050,8 @@ multispeciesParams <- function(object, interaction,
                       ##AAsp#####
                        min_w_bb = min_w_bb, min_w_aa = min_w_aa,
                       ##AAsp##
-                       species_names = object$species, 
+                       # species_names = object$species, # Rf
+                      species_names = object$ecotype,
                        gear_names = unique(object$gear))
     res@n <- n
     res@p <- p
