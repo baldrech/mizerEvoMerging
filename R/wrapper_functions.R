@@ -336,6 +336,15 @@ set_trait_model <- function(no_sp = 10,
                             avail_PP = NA,
                             avail_BB = NA,
                             avail_AA = NA,
+                            # RF ####
+                            r_mult = 1e0, #rmax multiplier to try things
+                            cannibalism = 1, # to tweak cannibalism in the interaction matrix
+                            erepro = 0.1, # reproduction efficiency
+                            rm = NULL, # rmax if want to set up constant
+                            s_max = 1000, # time max of the simulation
+                            normalFeeding = T, # if wants to normalise the feeding
+                            tau = 10, # exponent in psi function
+                            interaction = NULL,
                             ...){
     if (!is.na(no_w_pp))
         warning("New mizer code does not support the parameter no_w_pp")
@@ -370,7 +379,7 @@ set_trait_model <- function(no_sp = 10,
         sel_func = "knife_edge",
         knife_edge_size = knife_edge_size,
         gear = gear_names,
-        erepro = 1,
+        erepro = erepro,
         avail_PP = avail_PP,
         avail_BB = avail_BB,
         avail_AA = avail_AA,
@@ -387,7 +396,14 @@ set_trait_model <- function(no_sp = 10,
         ea_mat = ea_mat,
         ca_mat = ca_mat,
         ea_mor = ea_mor,
-        ca_mor = ca_mor
+        ca_mor = ca_mor,
+        # RF ####
+        extinct = FALSE,
+        cannibalism = cannibalism,
+        pop = 0, # to get the time of apparition
+        run = 1,
+        ecotype = 1:no_sp,
+        error = 0 # to trace errors
     )
     # Make the MizerParams
     trait_params <-
@@ -404,7 +420,6 @@ set_trait_model <- function(no_sp = 10,
             r_pp = r_pp,
             kappa = kappa,
             lambda = lambda,
-            ##AAsp####
             min_w_bb = min_w_bb,
             w_bb_cutoff = w_bb_cutoff,
             r_bb = r_bb,
@@ -414,8 +429,11 @@ set_trait_model <- function(no_sp = 10,
             w_aa_cutoff = w_aa_cutoff,
             r_aa = r_aa,
             kappa_alg = kappa_alg,
-            lambda_alg = lambda_alg
-            ##AAsp####
+            lambda_alg = lambda_alg#,
+            # RF ####
+            # normalFeeding = normalFeeding, 
+            # tau = tau, 
+            # interaction = interaction
         ) 
     # Sort out maximum recruitment - see A&P 2009 Get max flux at recruitment
     # boundary, R_max R -> | -> g0 N0 R is egg flux, in numbers per time Actual
@@ -424,22 +442,31 @@ set_trait_model <- function(no_sp = 10,
     # * g0 (g0 is the average growth rate of smallest size, i.e. at f0 = 0.5) N0
     # given by Appendix A of A&P 2010 - see Ken's email 12/08/13 Taken from
     # Ken's code 12/08/13 - equation in paper is wrong!
+    if (is.null(rm)) # if rmax not specified
+    {
     alpha_p <- f0 * h * beta^(2 * n - q - 1) * 
         exp((2 * n * (q - 1) - q^2 + 1) * sigma^2 / 2)
     alpha_rec <- alpha_p / (alpha * h * f0 - ks)
     # Calculating dw using Ken's code - see Ken's email 12/08/13
     tmpA <- w_inf[1]
     tmpB <- (log10(w_inf[length(w_inf)]) - log10(w_inf[1])) / (no_sp - 1) # Difference between logged w_infs, fine
-    dw_winf <- tmpB * tmpA * 10^(tmpB*( (1:no_sp) - 1)) # ?
+    # one sp case
+    if (no_sp == 1 ) dw_winf <-  tmpA *10
+    else  dw_winf <- tmpB * tmpA *10^(tmpB*((1:no_sp)-1)) # ?
     N0_max <- k0 * w_inf^(n*2-q-3+alpha_rec) * dw_winf  # Why * dw_winf, not / ? Ken confirms * in email
     # No need to include (1 - psi) in growth equation because allocation to reproduction at this size = 0, so 1 - psi = 1
     g0 <- (alpha * f0 * h * trait_params@w[1]^n - ks * trait_params@w[1]^p)
     r_max <- N0_max * g0
     
     trait_params@species_params$r_max <- r_max
+    } else trait_params@species_params$r_max <- rm
+    
+    # addition of the maximum time of the simulation to have it somewhere in the mizer object
+    trait_params@species_params$timeMax <- s_max
     
     return(trait_params)
 }
+
 
 
 #' Sets up parameters for a scale free trait-based model
