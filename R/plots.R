@@ -694,7 +694,7 @@ plot_spectra <- function(params, n, n_pp,
 plotFeedingLevel <- function(sim,
             species = dimnames(sim@n)$sp,
             time_range = max(as.numeric(dimnames(sim@n)$time)),
-            print_it = TRUE, ...) {
+            print_it = TRUE, returnData = F, ...) {
     feed_time <- getFeedingLevel(sim, time_range = time_range, ##AA
                                  drop = FALSE, ...)
     feed <- apply(feed_time, c(2, 3), mean)
@@ -715,10 +715,8 @@ plotFeedingLevel <- function(sim,
         scale_y_continuous(name = "Feeding Level", limits = c(0, 1)) +
         scale_colour_manual(values = sim@params@linecolour) +
         scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
-    return(p)
+    
+    if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 
