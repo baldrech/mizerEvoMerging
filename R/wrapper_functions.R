@@ -398,6 +398,7 @@ set_trait_model <- function(no_sp = 10,
         ea_mor = ea_mor,
         ca_mor = ca_mor,
         # RF ####
+        eta = eta,
         extinct = FALSE,
         cannibalism = cannibalism,
         pop = 0, # to get the time of apparition
