@@ -75,14 +75,24 @@ finalTouch <- function(result, dt = 0.1, print_it = T)
   biom <- do.call("abind", list(biomList, along = 1)) # abind the list
   
   names(dimnames(biom)) = list("time", "species", "size")
-  # print(dim(biom))
-  # print(dimnames(biom))
-  # print(seq(1, SummaryParams@species_params$timeMax[1])*dt)
   dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
 
   # I have to do the phyto aussi
   phyto <- do.call(abind, c(lapply(sim, function(isim)
-    isim@n_pp), along = 1))
+    isim@n_pp[-1,]), along = 1))
+  names(dimnames(phyto)) = list("time", "size")
+  dimnames(phyto)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+  
+  # and other backgrounds
+ algea <- do.call(abind, c(lapply(sim, function(isim)
+    isim@n_aa[-1,]), along = 1))
+ names(dimnames(algea)) = list("time", "size")
+ dimnames(algea)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+  
+ benthos <- do.call(abind, c(lapply(sim, function(isim)
+    isim@n_bb[-1,]), along = 1))
+ names(dimnames(benthos)) = list("time", "size")
+ dimnames(benthos)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
   
   # taking care of the effort
   effort <- do.call(rbind, lapply(sim, function(isim)
@@ -97,6 +107,8 @@ finalTouch <- function(result, dt = 0.1, print_it = T)
   sim@n = biom
   sim@effort = effort
   sim@n_pp = phyto
+  sim@n_aa <- algea
+  sim@n_bb <- benthos
   
   rm(list = "biom", "phyto", "effort")
   gc()
@@ -418,7 +430,12 @@ superOpt <- function(object, opt = 10) # optimise the run to make them lighter
 {
   object@n = object@n[seq(10,dim(object@n)[1],opt),,]
   object@n_pp = object@n_pp[seq(10,dim(object@n_pp)[1],opt),]
+  object@n_aa = object@n_aa[seq(10,dim(object@n_aa)[1],opt),]
+  object@n_bb = object@n_bb[seq(10,dim(object@n_bb)[1],opt),]
+  nameTemp <- names(dimnames(object@effort))
   object@effort = as.matrix(object@effort[seq(10,dim(object@effort)[1],opt),])
+  names(dimnames(object@effort)) <- nameTemp # as effort can be a one column matrix, you lose the dimension names in the process
+
   return(object)
 }
 
@@ -432,20 +449,26 @@ stitch <- function(sim) # this function takes all the sim output from model and 
   
   # if no mutants
   
-  if (endList == 1) return(list(sim[[1]]@n, sim[[1]]@n_pp)) # if there is only one object in the list, it is the mizer object without mutants
+  if (endList == 1) return(list(sim[[1]]@n, sim[[1]]@n_pp, sim[[1]]@n_aa, sim[[1]]@n_bb)) # if there is only one object in the list, it is the mizer object without mutants
   
   # from there I can add empty columns to every other array and add them 
   for (i in 1:(endList-1))# check every array except last one because no need
   {
     sim[[i]]@n <-abind(sim[[i]]@n, array(dim = c(Dtime, Dsp - dim(sim[[i]]@n)[2],Dw)), along = 2) # I add to each sim the missing columns pre-mutations
     sim[[i]]@n_pp <-abind(sim[[i]]@n_pp, array(dim = c(Dtime, Dsp - dim(sim[[i]]@n)[2])), along = 2)
+    sim[[i]]@n_aa <-abind(sim[[i]]@n_aa, array(dim = c(Dtime, Dsp - dim(sim[[i]]@n)[2])), along = 2)
+    sim[[i]]@n_bb <-abind(sim[[i]]@n_bb, array(dim = c(Dtime, Dsp - dim(sim[[i]]@n)[2])), along = 2)
+    
   }
   # Now every array in the output has the dimemsions of the final array, but with NAs everywhere
   
   # Now to add them up
   # getting rid of the NAs
   for (j in 1:endList) sim[[j]]@n[is.na( sim[[j]]@n)] <- 0
-  for (j in 1:endList) sim[[j]]@n_pp[is.na( sim[[j]]@n_pp)] <- 0
+  for (j in 1:endList) sim[[j]]@n_pp[is.na(sim[[j]]@n_pp)] <- 0
+  for (j in 1:endList) sim[[j]]@n_aa[is.na(sim[[j]]@n_aa)] <- 0
+  for (j in 1:endList) sim[[j]]@n_bb[is.na(sim[[j]]@n_bb)] <- 0
+  
   
   # addition
   biomass = 0
@@ -458,7 +481,17 @@ stitch <- function(sim) # this function takes all the sim output from model and 
   colnames(biomass_pp) <- colnames(sim[[endList]]@n_pp)
   names(dimnames(biomass_pp)) <- list("time","sp")
   
-  return(list(biomass,biomass_pp))
+  biomass_aa = 0
+  for (j in 1:endList) biomass_aa = biomass_aa + sim[[j]]@n_aa
+  colnames(biomass_aa) <- colnames(sim[[endList]]@n_aa)
+  names(dimnames(biomass_aa)) <- list("time","sp")
+  
+  biomass_bb = 0
+  for (j in 1:endList) biomass_bb = biomass_bb + sim[[j]]@n_bb
+  colnames(biomass_bb) <- colnames(sim[[endList]]@n_bb)
+  names(dimnames(biomass_bb)) <- list("time","sp")
+  
+  return(list(biomass, biomass_pp, biomass_aa, biomass_bb))
 }
 
 # to plot only one species family Not sure its working anymore, but function included in plots directly
