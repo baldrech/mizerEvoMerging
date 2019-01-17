@@ -34,7 +34,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     RMAX = TRUE, # enable egg density dependence
                     rm = NULL, # set up rmax by user
                     OptMutant = "M5", # mutation depends on number of eggs or not?
-                    Traits = TRUE, # False if one trait only mute per new ecotype
+                    Trait = "unknow", # No default, needs to be specified by user
                     r_mult = 1e0, #rmax multiplier to try things
                     erepro = 1, # reproduction efficiency
                     no_run = 1, # number of sim in a row to do
@@ -53,9 +53,9 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     tau = 7, # exponent in psi function
                     overlap = 0.5, # to tweak  interaction matrix
                     interaction = matrix(overlap,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the overlap param
+                    diet_steps = 10, # for the diet thing
                     ...){
 
-  
   if (is.null(initCondition))
   {
     firstRun = 1
@@ -109,10 +109,12 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     # Kick start the abundance
     if (print_it) cat(sprintf("Initialisation of the simulation, please wait.\n"))
-    initBio <- project(param, t_max = initTime, extinct = FALSE, OptMutant="yo", RMAX = RMAX) # init abundance
+    initBio <- project(param, t_max = initTime, extinct = FALSE, OptMutant="yo", RMAX = RMAX, diet_steps = 0) # init abundance
     #initBio <- project(param, t_max = 1, extinct = FALSE, OptMutant="yo", RMAX = T) # init abundance
     n_init <- initBio@n[dim(initBio@n)[1],,]
     n_pp_init <- initBio@n_pp[dim(initBio@n_pp)[1],]
+    n_aa_init <- initBio@n_aa[dim(initBio@n_aa)[1],]
+    n_bb_init <- initBio@n_bb[dim(initBio@n_bb)[1],]
     if (print_it) cat(sprintf("Initialisation completed, starting simulation.\n"))
     nameList = initBio@params@species_params$ecotype
     
@@ -127,7 +129,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
           
-          switch(Traits,
+          switch(Trait,
                  size = {
                    # Trait = asymptotic size
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
@@ -161,7 +163,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
                    mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
                    mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
-                   # Traits = predation
+                   # Trait = predation
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
                    mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
@@ -230,6 +232,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     initCondition@n = initCondition@n[,spIndex,] # take the abundance of only the present species
     n_init = initCondition@n[dim(initCondition@n)[1],,] # take last time step of the abundance to make it first time step
     n_pp_init = initCondition@n_pp[dim(initCondition@n_pp)[1],] # same for plankton
+    n_aa_init = initCondition@n_aa[dim(initCondition@n_aa)[1],] # same for plankton
+    n_bb_init = initCondition@n_bb[dim(initCondition@n_bb)[1],] # same for plankton
     if (print_it) cat(sprintf("Starting simulation with previous run.\n"))
     no_run = no_run + max(Nparam$timeMax)/t_max*dt # update number of runs
     firstRun = max(Nparam$timeMax)/t_max*dt +1 # state at which run we're starting
@@ -253,7 +257,9 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
     if (print_it) cat(sprintf("run = %s\n",j))
     # First run without mutants
-    sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort, print_it = print_it, predMort = predMort) # init first step
+    sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
+                   initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
+                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps) # init first step
     
     # Post initialisation -------------------
 
@@ -287,7 +293,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           }
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
           # TRAITS
-          switch(Traits,
+          switch(Trait,
                  size = {
                    # Trait = asymptotic size
                    sd = as.numeric(mAmplitude *  resident_params["w_inf"]) # standard deviation
@@ -328,7 +334,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    mutant["w_inf"] <- resident_params["w_inf"] + rnorm(1, 0, sd) # change a bit the asymptotic size
                    mutant["w_mat"] <- mutant["w_inf"] * eta # calculate from the new w_inf value
                    mutant["z0"] <- z0pre * as.numeric(mutant["w_inf"]) ^ (n - 1) # if I don't put as.numeric I lose the name z0
-                   # Traits = predation
+                   # Trait = predation
                    sd = as.numeric(mAmplitude *  resident_params["beta"]) # standard deviation
                    mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd) # change a bit the PPMR
                    sd = as.numeric(mAmplitude *  resident_params["sigma"]) # standard deviation
@@ -437,7 +443,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
         
         sim <- project(trait_params, t_max = t_max, dt = dt, prevSim = sim, mu = mu,
                        extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort,
-                       print_it = print_it, predMort = predMort )
+                       print_it = print_it, predMort = predMort, diet_steps = diet_steps )
         
       }
       allData[[counter]] <- sim # one last time for the last projection
@@ -453,12 +459,14 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
         #allData[[length(allData)]] = NULL # delete the last half run
         return(allData)
       }
-      # now allData has all the successive runs, lets stitch them
-      biomass <- stitch(allData) # biomass is a list of n and n_pp
       
+      # now allData has all the successive runs, lets stitch them
+      biomass <- stitch(allData) # biomass is a list of n and background
       sim@n = biomass[[1]]
       dimnames(sim@n)$sp <- sim@params@species_params$ecotype # to be able to sort the alive from extincts
       sim@n_pp = biomass[[2]]
+      sim@n_aa = biomass[[3]]
+      sim@n_bb = biomass[[4]]
       
       # now I want to do more run with, as initial conditions, the final step of the previous run
       # but first I need to save it
@@ -477,8 +485,9 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       n_pp_init = sim@n_pp[dim(sim@n)[1],]
 
   }
+  # all runs done
+  
   # final param counting the extinct species
-
     a = NULL
     for (i in firstRun:length(allRun) ) a = rbind(a,allRun[[i]]@params@species_params) # bind the different dataframes
     a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
