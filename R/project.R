@@ -331,12 +331,10 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
       init = t_init # Simulation restart at last time step as the next time_step is calculated during the loop
       
       # print(n)
-      
     }
     # the sim is fully initialised now, time to move forwards           
     #time projection
     
-
     # Set up progress bar
     # pb <- progress::progress_bar$new(
     #     format = "[:bar] :percent ETA: :eta",
@@ -357,7 +355,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
 
     for (i_time in init:t_steps) {
       # cat(sprintf("i_time = %i\n",i_time))
-      # print(i_time)
+
         # Do it piece by piece to save repeatedly calling methods
         # Calculate amount E_{a,i}(w) of available food
         avail_energy <- getAvailEnergy(sim@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa)
@@ -674,7 +672,6 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     if (missing(prevSim) == FALSE) sim@n[t_init+1,,]<- NA # need to get rid of the initialisation for the last run before exiting
     # I'm keeping the if to not have this enable during the initialisation phase
     # I'm assuming that I have at least one mutant per run
-
     return(sim)
 }
 
