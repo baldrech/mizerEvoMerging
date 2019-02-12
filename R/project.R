@@ -180,6 +180,10 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
 
     ## Temperature set-up
     ## at the moment we just repeat yearly values for the entire year, no smothing or interpolation is used
+    if (length(temperature) == 1) {
+      temperature = rep(temperature,t_max)
+      cat(sprintf("your temperature input vector is of size one, repeting it t_max times"))
+    }
     if (length(temperature) != t_max) {
       stop("your temperature input vector is not the same length as t_max")
     }
@@ -201,19 +205,27 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     {
       metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_met[iSpecies], 
-                                            c_a = params@species_params$ca_met[iSpecies], w = params@w)
+                                            c_a = params@species_params$ca_met[iSpecies],
+                                            Ed = params@species_params$ed_met[iSpecies], 
+                                            c_d = params@species_params$cd_met[iSpecies],w = params@w)
       
       matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_mat[iSpecies], 
-                                            c_a = params@species_params$ca_mat[iSpecies],  w = params@w)
+                                            c_a = params@species_params$ca_mat[iSpecies],
+                                            Ed = params@species_params$ed_mat[iSpecies], 
+                                            c_d = params@species_params$cd_mat[iSpecies],w = params@w)
       
       morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_mor[iSpecies], 
-                                            c_a = params@species_params$ca_mor[iSpecies],  w = params@w)
+                                            c_a = params@species_params$ca_mor[iSpecies],
+                                            Ed = params@species_params$ed_mor[iSpecies], 
+                                            c_d = params@species_params$cd_mor[iSpecies],w = params@w)
       
       intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_int[iSpecies], 
-                                            c_a = params@species_params$ca_int[iSpecies],  w = params@w)
+                                            c_a = params@species_params$ca_int[iSpecies],
+                                            Ed = params@species_params$ed_mor[iSpecies], 
+                                            c_d = params@species_params$cd_mor[iSpecies],w = params@w)
     }
 # print("dim(intTempScalar)=")
 # print(dim(intTempScalar))

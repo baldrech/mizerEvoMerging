@@ -54,6 +54,29 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     overlap = 0.5, # to tweak  interaction matrix
                     interaction = matrix(overlap,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the overlap param
                     diet_steps = 10, # for the diet thing
+                    # extension
+                    kappa_ben = 0.005,
+                    r_bb = 2,
+                    min_w_bb = 1e-10,  
+                    w_bb_cutoff = 10,
+                    lambda_alg = 2+q-n,
+                    kappa_alg = 0.005,
+                    r_aa = 2,
+                    min_w_aa = 1e-10,  
+                    w_aa_cutoff = 100,
+                    t_ref = 10,
+                    temperature =  rep(t_ref, times = t_max),
+                    ea_met = NA,
+                    ca_met = NA,
+                    ea_int = NA,
+                    ca_int = NA,
+                    ea_mat = NA,
+                    ca_mat = NA,
+                    ea_mor = NA,
+                    ca_mor = NA,
+                    avail_PP = NA,
+                    avail_BB = NA,
+                    avail_AA = NA,
                     ...){
 
   if (is.null(initCondition))
@@ -94,7 +117,29 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                        rm = rm,
                        normalFeeding = normalFeeding,
                        tau = tau,
-                       interaction = interaction
+                       interaction = interaction,
+                       # extension
+                       kappa_ben = kappa_ben,
+                       r_bb = r_bb,
+                       min_w_bb = min_w_bb,  
+                       w_bb_cutoff = w_bb_cutoff,
+                       lambda_alg = lambda_alg,
+                       kappa_alg = kappa_alg,
+                       r_aa = r_aa,
+                       min_w_aa = min_w_aa,  
+                       w_aa_cutoff = w_aa_cutoff,
+                       t_ref = t_ref,
+                       ea_met = ea_met,
+                       ca_met = ca_met,
+                       ea_int = ea_int,
+                       ca_int = ca_int,
+                       ea_mat = ea_mat,
+                       ca_mat = ca_mat,
+                       ea_mor = ea_mor,
+                       ca_mor = ca_mor,
+                       avail_PP = avail_PP,
+                       avail_BB = avail_BB,
+                       avail_AA = avail_AA
                        ) 
     
     # Initialisation ---------------------
@@ -196,7 +241,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     # Recreate the "param" object needed for the projection
     param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, 
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     
@@ -225,7 +270,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, 
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     spIndex = as.character(Nparam$ecotype)
@@ -259,7 +304,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     # First run without mutants
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
                    initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
-                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps) # init first step
+                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature) # init first step
     
     # Post initialisation -------------------
 
@@ -385,7 +430,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           
           # Recreate the "param" object needed for the projection
           trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, 
+                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                                       # normalFeeding = normalFeeding, tau = tau, 
                                       interaction = interaction)
           ## TODO ### need to fix this name shenaniggan
@@ -443,7 +488,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
         
         sim <- project(trait_params, t_max = t_max, dt = dt, prevSim = sim, mu = mu,
                        extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort,
-                       print_it = print_it, predMort = predMort, diet_steps = diet_steps )
+                       print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature)
         
       }
       allData[[counter]] <- sim # one last time for the last projection
@@ -477,7 +522,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
       param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, 
+                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                            # normalFeeding = normalFeeding, tau = tau,
                            interaction = interaction)
       spIndex = as.character(Nparam$ecotype)
@@ -512,7 +557,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     }
     # Update all the other param from the dataframe
     FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, 
+                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
