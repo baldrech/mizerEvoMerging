@@ -182,10 +182,10 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     ## at the moment we just repeat yearly values for the entire year, no smothing or interpolation is used
     if (length(temperature) == 1) {
       temperature = rep(temperature,t_max)
-      cat(sprintf("your temperature input vector is of size one, repeting it t_max times"))
+      cat(sprintf("your temperature input vector is of size one, repeting it t_max times\n"))
     }
     if (length(temperature) != t_max) {
-      stop("your temperature input vector is not the same length as t_max")
+      stop("your temperature input vector is not the same length as t_max\n")
     }
     
     time_temperature_dt <- rep(temperature, length = t_max/dt, each = 1/dt) # works if t_max = length(temperature)
@@ -224,8 +224,8 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
       intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
                                             Ea = params@species_params$ea_int[iSpecies], 
                                             c_a = params@species_params$ca_int[iSpecies],
-                                            Ed = params@species_params$ed_mor[iSpecies], 
-                                            c_d = params@species_params$cd_mor[iSpecies],w = params@w)
+                                            Ed = params@species_params$ed_int[iSpecies], 
+                                            c_d = params@species_params$cd_int[iSpecies],w = params@w)
     }
 # print("dim(intTempScalar)=")
 # print(dim(intTempScalar))
