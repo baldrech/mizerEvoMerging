@@ -326,6 +326,7 @@ set_trait_model <- function(no_sp = 10,
                             min_w_aa = 1e-10,  
                             w_aa_cutoff = 100,
                             t_ref = 10,
+                            t_d = 25,
                             ea_met = NA,
                             ca_met = NA,
                             ea_int = NA,
@@ -355,6 +356,7 @@ set_trait_model <- function(no_sp = 10,
                             tau = 10, # exponent in psi function
                             interaction = NULL,
                             ...){
+
     if (!is.na(no_w_pp))
         warning("New mizer code does not support the parameter no_w_pp")
     
@@ -445,7 +447,8 @@ set_trait_model <- function(no_sp = 10,
             r_aa = r_aa,
             kappa_alg = kappa_alg,
             lambda_alg = lambda_alg,
-            t_ref = t_ref
+            t_ref = t_ref,
+            t_d = t_d
             # RF ####
             # normalFeeding = normalFeeding, 
             # tau = tau, 

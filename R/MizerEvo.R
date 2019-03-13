@@ -65,7 +65,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     min_w_aa = 1e-10,  
                     w_aa_cutoff = 100,
                     t_ref = 10,
-                    temperature =  rep(t_ref, times = t_max),
+                    t_d = 25,
+                    temperature =  rep(t_ref, times = t_max*no_run),
                     ea_met = NA,
                     ca_met = NA,
                     ea_int = NA,
@@ -137,6 +138,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                        min_w_aa = min_w_aa,  
                        w_aa_cutoff = w_aa_cutoff,
                        t_ref = t_ref,
+                       t_d = t_d,
                        ea_met = ea_met,
                        ca_met = ca_met,
                        ea_int = ea_int,
@@ -218,6 +220,11 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    mutant$eta <- mutant$eta + rnorm(1, 0, sd) # change a bit eta
                    mutant$w_mat <- mutant$w_inf * mutant$eta # update
                  },
+                 ed_int = {
+                   # Trait = ed_int
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                 },
                  all = {
                    # Trait = asymptotic size
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
@@ -257,7 +264,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     # Recreate the "param" object needed for the projection
     param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     
@@ -286,7 +293,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     spIndex = as.character(Nparam$ecotype)
@@ -317,10 +324,15 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
     if (print_it) cat(sprintf("run = %s\n",j))
+    
+    # Select the right temperature vector for the run/ must be t_max length
+    temperature_vec <- temperature[seq((j-1)*t_max+1,j*t_max)]
+    cat(sprintf("temperature for the run:\n"))
+    print(temperature_vec)
     # First run without mutants
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
                    initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
-                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature) # init first step
+                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec) # init first step
     
     # Post initialisation -------------------
 
@@ -389,6 +401,11 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    mutant["w_mat"] <- mutant["w_inf"] * mutant["eta"] # update
                    #cat(sprintf("Its w_mat is: %g\n",mutant["w_mat"]))
                  },
+                 ed_int = {
+                   # Trait = ed_int
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                 },
                  all = {
                    # Trait = asymptotic size
                    sd = as.numeric(mAmplitude *  resident_params["w_inf"]) # standard deviation
@@ -446,7 +463,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           
           # Recreate the "param" object needed for the projection
           trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
+                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                                       # normalFeeding = normalFeeding, tau = tau, 
                                       interaction = interaction)
           ## TODO ### need to fix this name shenaniggan
@@ -504,22 +521,28 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
         
         sim <- project(trait_params, t_max = t_max, dt = dt, prevSim = sim, mu = mu,
                        extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort,
-                       print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature)
+                       print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec)
         
       }
-      allData[[counter]] <- sim # one last time for the last projection
       
-      # if simulation went extinct
+      
       ##TODO### need to update this I reckon, not sure if it works
       if (length(sim) == 2) 
       {
+        allData[[counter]] <- sim[[1]] #
         for (i in 1:(length(allData)-1)) # change the time max of the sim as it's shorter now
         {
           allData[[i]]@params@species_params$timeMax = length(sim[[1]])*t_max/dt
         }
-        #allData[[length(allData)]] = NULL # delete the last half run
+        # need to add 0 biomass to the last sim to make it last until t_max and then do final touch
+        
         return(allData)
       }
+      
+      allData[[counter]] <- sim # one last time for the last projection
+      
+      # if simulation went extinct
+      
       
       # now allData has all the successive runs, lets stitch them
       biomass <- stitch(allData) # biomass is a list of n and background
@@ -538,7 +561,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
       param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
+                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                            # normalFeeding = normalFeeding, tau = tau,
                            interaction = interaction)
       spIndex = as.character(Nparam$ecotype)
@@ -573,7 +596,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     }
     # Update all the other param from the dataframe
     FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
+                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
