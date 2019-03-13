@@ -2048,38 +2048,179 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
   
 }
 
-plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size = 20, save_it = F, print_it = T, returnData = F, plotName = "thermotoleranceTemp.png")
+plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size = NULL, ylim = c(NA,NA),
+                            f0 = object@params@f0,
+                            save_it = F, print_it = T, returnData = F, 
+                            plotName = "thermotoleranceTemp.png", plotTitle = "thermotolerance")
 {
+  if(is.null(size)) size <- # size slot closer to maturation size
+      which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
+              min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
   
-  intakeScalar <- tempFun(w = sim@params@w, temperature = temperature, t_ref = sim@params@t_ref , #t_d = t_d, 
-                          Ea = sim@params@species_params$ea_int[iSpecies], c_a = sim@params@species_params$ca_int[iSpecies], 
-                          Ed = sim@params@species_params$ed_int[iSpecies], c_d = sim@params@species_params$cd_int[iSpecies])
   
-  metabScalar <- tempFun(w = sim@params@w, temperature = temperature, t_ref = sim@params@t_ref , #t_d = t_d, 
-                         Ea = sim@params@species_params$ea_met[iSpecies], c_a = sim@params@species_params$ca_met[iSpecies], 
-                         Ed = sim@params@species_params$ed_met[iSpecies], c_d = sim@params@species_params$cd_met[iSpecies])
+  intakeScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref , t_d = object@params@t_d, 
+                          Ea = object@params@species_params$ea_int[iSpecies], c_a = object@params@species_params$ca_int[iSpecies], 
+                          Ed = object@params@species_params$ed_int[iSpecies], c_d = object@params@species_params$cd_int[iSpecies])
   
+  metabScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref , t_d = object@params@t_d, 
+                         Ea = object@params@species_params$ea_met[iSpecies], c_a = object@params@species_params$ca_met[iSpecies], 
+                         Ed = object@params@species_params$ed_met[iSpecies], c_d = object@params@species_params$cd_met[iSpecies])
   # temperatureScalar has size in rows and temperature in cols
   
-  myData <- data.frame("temperature" = temperature, "intake" = intakeScalar[size,], "metabolism" = metabScalar[size,])
+  # multiplication of 2 matrices to get a 3 dim array
+  b <- NULL
+  for (iSp in 1:dim(object@params@intake_max)[1])
+  {
+    a <- object@params@intake_max[iSp,] * intakeScalar
+    b <- abind(b,a,along = 3)
+  }
+  
+  e <- sweep(f0 * b, c(1,2), object@params@species_params$alpha, "*", check.margin = FALSE)
+  
+  b <- NULL
+  for (iSp in 1:dim(object@params@intake_max)[1])
+  {
+    a <- object@params@metab[iSp,] * metabScalar
+    b <- abind(b,a,along = 3)
+  }
+  
+  e <- e - b
+  
+  # normalise between 0 and 2 for the plot
+  netE_dat <- e[size,,iSpecies]
+  netE_dat <- netE_dat/max(netE_dat)*2
+  
+  myData <- data.frame("temperature" = temperature, "intake" = intakeScalar[size,], "metabolism" = metabScalar[size,], "netEnergy" = netE_dat)
   
   # myData <- data.frame("temperature" = temperature-273, "scalar" = temperatureScalar[20,])
   
   p1 <- ggplot(myData)+
     geom_line(aes(x = temperature, y = intake), color = "blue")+
     geom_line(aes(x = temperature, y = metabolism), color = "red")+
-    geom_vline(xintercept = sim@params@t_ref, linetype = "dashed") +
-    geom_hline(yintercept = 1, linetype = "dashed") +
-    scale_y_continuous(name = "scalar")+
+    geom_line(aes(x = temperature, y = netEnergy), color = "green")+
+    geom_vline(xintercept = object@params@t_ref, linetype = "dashed", alpha = 0.5) +
+    annotate("text", x = object@params@t_ref, y = 0.1, label = "t_ref") + 
+    geom_vline(xintercept = object@params@t_d, linetype = "dashed", alpha = 0.5,color = "red") +
+    annotate("text", x = object@params@t_d, y = 0.1, label = "t_d") + 
+    geom_hline(yintercept = 0, alpha = 0.5) +
+    geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+    scale_y_continuous(name = "scalar", limits = ylim)+
     theme(legend.title=element_blank(),
           legend.justification=c(1,1),
           legend.key = element_rect(fill = "white"),
           panel.background = element_rect(fill = "white", color = "black"),
           panel.grid.minor = element_line(colour = "grey92"))+
-    ggtitle("thermotolerance")
+    ggtitle(plotTitle)
   
   if(save_it) ggsave(p1, file = plotName)
   
   if(returnData) return(myData) else if(print_it) return(p1)
   
+}
+
+plotPlankton <- function(object,
+                         start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                         end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                         y_ticks = 6, print_it = TRUE,
+                         ylim = c(NA, NA),
+                         total = TRUE, returnData = FALSE, ...){
+  b <- getPlanktonBiom(object)
+  if (start_time >= end_time) {
+    stop("start_time must be less than end_time")
+  }
+  # Select time range
+  b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
+           (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
+  b_total <- rowSums(b)
+  # Include total
+  # if (total) {
+  b <- cbind(b, Total = b_total)
+  
+  bm <- data.frame("time" = names(b_total), "value" = b_total)
+  bm$time <- as.numeric(as.character(bm$time))
+  
+  p <- ggplot(bm) +
+    geom_line(aes(x = time, y = value, group = 1)) +
+    scale_y_continuous(name = "Biomass [g]") + #, breaks = log_breaks(n = y_ticks),  trans = "log10") 
+    theme(panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          legend.key = element_rect(fill = "white"))+
+    ggtitle("Plankton biomass") 
+  
+  # } else {
+  # names(dimnames(b)) <- c("time", "size")
+  # bm <- reshape2::melt(b)
+  # # Force Species column to be a factor (otherwise if numeric labels are
+  # # used they may be interpreted as integer and hence continuous)
+  # # bm$Species <- as.factor(bm$Species)
+  # # Implement ylim and a minimal cutoff
+  # min_value <- 1e-20
+  # bm <- bm[bm$value >= min_value &
+  #            (is.na(ylim[1]) | bm$value >= ylim[1]) &
+  #            (is.na(ylim[2]) | bm$value <= ylim[1]), ]
+  # # Select species
+  # # spec_bm <- bm[bm$Species %in% species, ]
+  # x_label <- "Year"
+  # y_label <- "Biomass [g]"
+  # 
+  # p <- ggplot(bm) +
+  #   geom_line(aes(x = time, y = value, group = size, color = as.numeric(as.character(size)))) +
+  # scale_y_continuous(trans = "log10", breaks = log_breaks(n = y_ticks), name = y_label) 
+  # 
+  # }
+  
+  if(returnData) return(p) else if (print_it) return(p)
+  
+}
+
+plotNetEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F,
+                          nameSave = "netEnergy.png",...){
+  
+  time_elements <- get_time_elements(object,time_range)
+  energy_time <- aaply(which(time_elements), 1, function(x){
+    # Necessary as we only want single time step but may only have 1 species which makes using drop impossible
+    
+    n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+    dimnames(n) <- dimnames(object@n)[2:3]
+    energy <- getEReproAndGrowth(object@params, n=n, n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,], 
+                                 intakeScalar = object@intTempScalar[,,x], metScalar = object@metTempScalar[,,x])
+    return(energy)})
+  
+  #growth <- apply(growth_time, c(2,3), mean) # use this when I will have time_range on more than one time
+  energy = energy_time
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    dimnames(energy)$sp = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    energy_sp = matrix(data = NA, ncol = dim(energy)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(energy)$w)) # prepare the new object
+    names(dimnames(energy_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = energy # save to manip
+      temp[which(rownames(energy) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(energy)==i)) # do the mean (in 2 steps)
+      energy_sp[which(rownames(energy_sp)==i), ] = temp
+    }
+    energy = energy_sp
+  }
+  
+  name = paste("energy level at time",time_range,sep=" ")
+  plot_dat <- data.frame(value = c(energy), Species = dimnames(energy)[[1]], w = rep(object@params@w, each=length(dimnames(energy)[[1]])))
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=w, y = value, colour = Species)) + 
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
+    scale_y_continuous(name = "net energy value", trans ="log10")+
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
