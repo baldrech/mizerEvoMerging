@@ -67,6 +67,10 @@ getBiomass <- function(sim, ...) {
     return(biomass)
 }
 
+getPlanktonBiom <- function(sim) {
+  biomass <- apply(sweep(sim@n_pp, 2, sim@params@w_full * sim@params@dw_full, "*"), c(1, 2), sum)
+  return(biomass)
+}
 
 #' Calculate the total abundance in terms of numbers of species within a size range
 #'
