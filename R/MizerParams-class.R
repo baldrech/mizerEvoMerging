@@ -368,7 +368,9 @@ setClass(
         initial_n_aa = "numeric",
         lambda_alg = "numeric",
         kappa_alg = "numeric",
-        t_ref = "numeric"
+        t_ref = "numeric",
+        t_d = "numeric",
+        maxIntakeScalar = "array"
     ),
     prototype = prototype(
         w = NA_real_,
@@ -383,6 +385,8 @@ setClass(
         f0 = NA_real_,
         kappa = NA_real_,
         t_ref = NA_real_,
+        t_d = NA_real_,
+        maxIntakeScalar = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
         psi = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
         initial_n = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
         intake_max = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
@@ -500,6 +504,10 @@ emptyParams <- function(object, min_w = 0.001, max_w = 1000, no_w = 100,
     interaction <- array(1, dim = c(no_sp, no_sp), 
                          dimnames = list(predator = species_names, 
                                          prey = species_names))
+    
+    maxIntakeScalar <- array(NA, dim = c(no_sp, no_w))
+    
+    
     vec1 <- as.numeric(rep(NA, no_w_full))
     names(vec1) <- signif(w_full,3)
     w_min_idx <- rep(1, no_sp)
@@ -552,6 +560,7 @@ mat2 <- array(NA, dim=c(object,no_w,no_w_full), dimnames = list(sp=species_names
                ##? what is sc?
                rr_bb = vec1, cc_bb = vec1, initial_n_bb = vec1, 
                rr_aa = vec1, cc_aa = vec1, initial_n_aa = vec1,
+               maxIntakeScalar = mat1,
                ##AAsp##
                species_params = species_params,
                interaction = interaction, srr = srr, 
@@ -662,9 +671,9 @@ multispeciesParams <- function(object, interaction,
                     kappa = 1e11, lambda = (2 + q - n), w_pp_cutoff = 10,
                     min_w_bb = 1e-10, kappa_ben = 1e11, lambda_ben = (2 + q - n), w_bb_cutoff = 10, r_bb = 2,
                     min_w_aa = 1e-10, kappa_alg = 1e11, lambda_alg = (2 + q - n), w_aa_cutoff = 100, r_aa = 2,
-                    t_ref = 10,
+                    t_ref = 10, t_d = 25,
                     f0 = 0.6, z0pre = 0.6, z0exp = n - 1) {
-  
+
     # row.names(object) <- object$species # RF
     row.names(object) <- object$ecotype
     no_sp <- nrow(object)
@@ -1006,6 +1015,7 @@ multispeciesParams <- function(object, interaction,
 
 ## Next we sort out Tmax for intake and metabolism - this the temperature where the rate is highest. Since unimodal responses don't make sense for maturity and metabolism, we set this value to xx by default 
 ### TODO#### - set ref temperature in the params file. Should default tmax be set at tref?
+
 #     
 #     # Sort out maximum temp (tmax) column for two rates: metabolism
 #     if (!("tmax_met" %in% colnames(object))) {
@@ -1074,6 +1084,7 @@ multispeciesParams <- function(object, interaction,
     res@lambda_alg <- lambda_alg
     res@kappa_alg <- kappa_alg
     res@t_ref <- t_ref
+    res@t_d <- t_d
     
     # If not w_min column in species_params, set to w_min of community
     if (!("w_min" %in% colnames(object)))
