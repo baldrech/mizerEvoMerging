@@ -112,11 +112,10 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                     shiny_progress = NULL, 
                     diet_steps=10,
                     #RF ####
-                    mu = 1, resident = NULL, extinct = TRUE, Rmax = TRUE, prevSim = NULL,
+                    mu = 1, resident = NULL, extinct = TRUE, RMAX = TRUE, prevSim = NULL,
                     OptMutant = "M1", M3List = NULL, checkpoint, print_it = TRUE, predMort = NULL,
                     ...) {  #default number of years (steps?) to calcualte diet for 
     # validObject(params)
-  
   umbrella = FALSE # parameter that says if there are still things alive # might get rid of it
   t_save = dt
     
@@ -203,25 +202,25 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     
     for(iSpecies in 1:dim(params@species_params)[1]) # fill the scalars arrays
     {
-      metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
+      metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d, 
                                             Ea = params@species_params$ea_met[iSpecies], 
                                             c_a = params@species_params$ca_met[iSpecies],
                                             Ed = params@species_params$ed_met[iSpecies], 
                                             c_d = params@species_params$cd_met[iSpecies],w = params@w)
       
-      matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
+      matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
                                             Ea = params@species_params$ea_mat[iSpecies], 
                                             c_a = params@species_params$ca_mat[iSpecies],
                                             Ed = params@species_params$ed_mat[iSpecies], 
                                             c_d = params@species_params$cd_mat[iSpecies],w = params@w)
       
-      morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
+      morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
                                             Ea = params@species_params$ea_mor[iSpecies], 
                                             c_a = params@species_params$ca_mor[iSpecies],
                                             Ed = params@species_params$ed_mor[iSpecies], 
                                             c_d = params@species_params$cd_mor[iSpecies],w = params@w)
       
-      intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, 
+      intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
                                             Ea = params@species_params$ea_int[iSpecies], 
                                             c_a = params@species_params$ca_int[iSpecies],
                                             Ed = params@species_params$ed_int[iSpecies], 
@@ -249,7 +248,8 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     sim@matTempScalar <- matTempScalar
     sim@morTempScalar <- morTempScalar
     sim@intTempScalar <- intTempScalar
-    
+    sim@params@maxIntakeScalar <- apply(intTempScalar,c(1,2),max)
+
     # RF ####
     if(dim(sim@n)[2] == 1) dimnames(sim@n)$sp = 1
     else   dimnames(sim@n)$sp = rownames(initial_n) # the object created by mizer doesnt keep in memomry my mutant names, so Im putting them here
@@ -364,13 +364,17 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     }
     
     # cat(sprintf("number of time_step = %i\n",t_steps))
-
     for (i_time in init:t_steps) {
-      # cat(sprintf("i_time = %i\n",i_time))
+      
+      if(i_time %% 100 == 0) 
+      {
+        cat(sprintf("i_time = %i\n",i_time))
+        cat(sprintf("temp = %f\n",temperature_dt[i_time]))
+      }
 
         # Do it piece by piece to save repeatedly calling methods
         # Calculate amount E_{a,i}(w) of available food
-        avail_energy <- getAvailEnergy(sim@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa)
+        avail_energy <- getAvailEnergy(sim@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa) #, intakeScalar = sim@intTempScalar[,,i_time])
         
         # Calculate amount f_i(w) of food consumed
         feeding_level <- getFeedingLevel(sim@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa, 
@@ -430,7 +434,6 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                                         intakeScalar = sim@intTempScalar[,,i_time])
           sim@diet_comp[]<-(diet_comp_all/diet_steps) + sim@diet_comp
         }
-
         # Iterate species one time step forward:
         # See Ken's PDF
         # A_{ij} = - g_i(w_{j-1}) / dw_j dt
@@ -452,7 +455,6 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         n <- inner_project_loop(no_sp = no_sp, no_w = no_w, n = n,
                                 A = A, B = B, S = S,
                                 w_min_idx = sim@params@w_min_idx)
-        
         # Dynamics of plankton spectrum uses a semi-chemostat model (de Roos - ask Ken)
         # We use the exact solution under the assumption of constant mortality during timestep
         ###TODO?#### 
