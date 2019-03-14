@@ -526,6 +526,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       }
       
       
+      # if simulation went extinct
       ##TODO### need to update this I reckon, not sure if it works
       if (length(sim) == 2) 
       {
@@ -540,9 +541,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       }
       
       allData[[counter]] <- sim # one last time for the last projection
-      
-      # if simulation went extinct
-      
+            
       
       # now allData has all the successive runs, lets stitch them
       biomass <- stitch(allData) # biomass is a list of n and background
@@ -600,7 +599,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
-    sim = finalTouch(list(allRun,FinalParam),print_it = print_it)
+    sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it)
     gc()
     simOpt = superOpt(sim) 
     if (save_it)

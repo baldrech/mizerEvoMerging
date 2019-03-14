@@ -41,7 +41,7 @@ biom <-function(object,phenotype=T)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
-finalTouch <- function(result, dt = 0.1, print_it = T)
+finalTouch <- function(result, temperature, dt = 0.1, print_it = T)
 {
   ## processing data
   if (print_it) cat("Data handling\n")
@@ -109,6 +109,48 @@ finalTouch <- function(result, dt = 0.1, print_it = T)
   sim@n_pp = phyto
   sim@n_aa <- algea
   sim@n_bb <- benthos
+  
+  # need to update the scalar matrices too
+  time_temperature_dt <- rep(temperature, length = sim@params@species_params$timeMax[1], each = 1/dt) # works if t_max = length(temperature)
+  x_axis <- seq(length.out=sim@params@species_params$timeMax[1],from =1)   # = time vector
+  temperature_dt <- matrix(time_temperature_dt, dimnames = list(x_axis, "temperature"))
+  # arrays with scalar values for all time, species and size
+  metTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
+  matTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
+  morTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
+  intTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
+  
+  for(iSpecies in 1:dim(sim@params@species_params)[1]) # fill the scalars arrays
+  {
+    metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d, 
+                                          Ea = sim@params@species_params$ea_met[iSpecies], 
+                                          c_a = sim@params@species_params$ca_met[iSpecies],
+                                          Ed = sim@params@species_params$ed_met[iSpecies], 
+                                          c_d = sim@params@species_params$cd_met[iSpecies],w = sim@params@w)
+    
+    matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+                                          Ea = sim@params@species_params$ea_mat[iSpecies], 
+                                          c_a = sim@params@species_params$ca_mat[iSpecies],
+                                          Ed = sim@params@species_params$ed_mat[iSpecies], 
+                                          c_d = sim@params@species_params$cd_mat[iSpecies],w = sim@params@w)
+    
+    morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+                                          Ea = sim@params@species_params$ea_mor[iSpecies], 
+                                          c_a = sim@params@species_params$ca_mor[iSpecies],
+                                          Ed = sim@params@species_params$ed_mor[iSpecies], 
+                                          c_d = sim@params@species_params$cd_mor[iSpecies],w = sim@params@w)
+    
+    intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+                                          Ea = sim@params@species_params$ea_int[iSpecies], 
+                                          c_a = sim@params@species_params$ca_int[iSpecies],
+                                          Ed = sim@params@species_params$ed_int[iSpecies], 
+                                          c_d = sim@params@species_params$cd_int[iSpecies],w = sim@params@w)
+  }
+  
+  sim@metTempScalar <- metTempScalar
+  sim@matTempScalar <- matTempScalar
+  sim@morTempScalar <- morTempScalar
+  sim@intTempScalar <- intTempScalar
   
   rm(list = "biom", "phyto", "effort")
   gc()
