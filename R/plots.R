@@ -1774,7 +1774,7 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
   rownames(fitness) <- object@params@species_params$ecotype[PhenIdx] # this is their name
   # make it a dataframe and add species and mat size for processing later
   fitness <- as.data.frame(fitness)
-  fitness$w_mat <- object@params@species_params$w_mat
+  fitness$trait <- object@params@species_params$ed_int
   fitness$species <- object@params@species_params$species
   
   fitness <- fitness[!rowSums(fitness[,-c(dim(fitness)[2]-1,dim(fitness)[2])]) == 0,] # get rid of phenotypes not appeared yet
@@ -1785,17 +1785,17 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
   fitness_dat$species <- NULL # don't need this anymore
   fitness_dat[fitness_dat==0] <- NA # clearer plot
   
-  plot_dat <- melt(fitness_dat, id = "w_mat")
+  plot_dat <- melt(fitness_dat, id = "trait")
   plot_dat$variable <- as.numeric(as.character(plot_dat$variable))
   
   colfunc <- colorRampPalette(c("black", "orange"))
-  colGrad <- colfunc(length(unique(plot_dat$w_mat)))
+  colGrad <- colfunc(length(unique(plot_dat$trait)))
   
   p <- ggplot(plot_dat) +
-    geom_line(aes(x=as.numeric(variable),y=value,group = as.factor(w_mat), color = as.factor(w_mat))) +
+    geom_line(aes(x=as.numeric(variable),y=value,group = as.factor(trait), color = as.factor(trait))) +
     scale_y_continuous(trans = "log10") +
     scale_x_continuous(name = "Time") +
-    scale_color_manual(name = "w_mat", values = colGrad)+
+    scale_color_manual(name = "trait", values = colGrad)+
     #geom_vline(xintercept = 3000, linetype = "dashed") +
     theme(legend.title=element_text(),
           panel.background = element_rect(fill = "white", color = "black"),
@@ -1831,10 +1831,10 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     # change slightly the w_mat of the original species so they do not overlap across sim
     #myMat$w_mat[myMat$w_mat == myMat$w_mat[1]] <- sapply(myMat$w_mat[myMat$w_mat == myMat$w_mat[1]],function(x) x*rnorm(1,1,0.00001))
     
-    plot_dat <- melt(myMat, id = "w_mat")
+    plot_dat <- melt(myMat, id = "trait")
     plot_dat$variable <- as.numeric(as.character(plot_dat$variable))
     
-    colnames(plot_dat) <- c("w_mat","Time","Fitness")
+    colnames(plot_dat) <- c("trait","Time","Fitness")
     plot_dat$Species <- iSpecies
     
     # if wish to keep one time only
@@ -1875,7 +1875,8 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
   
   
   p1 <- ggplot(plotDat[(which(plotDat$Species == 1)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    # geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 1") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1891,7 +1892,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p2 <- ggplot(plotDat[(which(plotDat$Species == 2)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 2") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1908,7 +1909,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
   
   
   p3 <- ggplot(plotDat[(which(plotDat$Species == 3)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 3") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1924,7 +1925,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p4 <- ggplot(plotDat[(which(plotDat$Species == 4)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 4") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1940,7 +1941,9 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p5 <- ggplot(plotDat[(which(plotDat$Species == 5)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    
     scale_y_continuous(trans = "log10", name = "Species 5") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1956,7 +1959,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p6 <- ggplot(plotDat[(which(plotDat$Species == 6)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 6") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1972,7 +1975,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p7 <- ggplot(plotDat[(which(plotDat$Species == 7)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 7") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -1988,7 +1991,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p8 <- ggplot(plotDat[(which(plotDat$Species == 8)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 8") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -2004,7 +2007,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     ggtitle(NULL)
   
   p9 <- ggplot(plotDat[(which(plotDat$Species == 9)),]) +
-    geom_point(aes(x=w_mat,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
     scale_y_continuous(trans = "log10", name = "Species 9") +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
@@ -2049,7 +2052,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
 }
 
 plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size = NULL, ylim = c(NA,NA),
-                            f0 = object@params@f0,
+                            f0 = object@params@f0, netEnergy = F,
                             save_it = F, print_it = T, returnData = F, 
                             plotName = "thermotoleranceTemp.png", plotTitle = "thermotolerance")
 {
@@ -2097,7 +2100,6 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
   p1 <- ggplot(myData)+
     geom_line(aes(x = temperature, y = intake), color = "blue")+
     geom_line(aes(x = temperature, y = metabolism), color = "red")+
-    geom_line(aes(x = temperature, y = netEnergy), color = "green")+
     geom_vline(xintercept = object@params@t_ref, linetype = "dashed", alpha = 0.5) +
     annotate("text", x = object@params@t_ref, y = 0.1, label = "t_ref") + 
     geom_vline(xintercept = object@params@t_d, linetype = "dashed", alpha = 0.5,color = "red") +
@@ -2111,6 +2113,8 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
           panel.background = element_rect(fill = "white", color = "black"),
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(plotTitle)
+  
+  if(netEnergy) p <- p + geom_line(aes(x = temperature, y = netEnergy), color = "green")
   
   if(save_it) ggsave(p1, file = plotName)
   
