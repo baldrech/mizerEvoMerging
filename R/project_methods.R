@@ -64,7 +64,7 @@ NULL
 #' getAvailEnergy(params,n,n_pp)
 #' }
 
-getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { 
+getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) { 
 
     # idx_sp are the index values of object@w_full such that
     # object@w_full[idx_sp] = object@w
@@ -75,6 +75,11 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) {
     # we have, for our predator species i, that prey[k] equals
     # the sum over all species j of fish, of theta_{i,j}*N_j(wFull[k])
     prey[, idx_sp] <- object@interaction %*% n
+    
+    
+    # rom
+    # a <- interactionTemperature(object = object, intakeScalar = intakeScalar)
+    # prey[, idx_sp] <- a * n
  
     # apply preference parameter for pelagic and benthic spectra and add them to get availability of total background prey 
     # first create a matrix to store availability of background spectrum food 
@@ -212,6 +217,39 @@ getFeedingLevel <- function(object, n, n_pp, n_bb, n_aa, avail_energy, time_rang
     }
 }
 
+getCriticalFeedingLevel <- function(object, n, n_pp, n_bb, n_aa, avail_energy, time_range, drop=FALSE){
+  if (is(object, "MizerParams")) {
+    if (missing(avail_energy)) {
+      avail_energy <- getAvailEnergy(object, n, n_pp, n_bb, n_aa)
+    }
+    # Check dims of avail_energy
+    
+    if (!all(dim(avail_energy) == c(nrow(object@species_params),
+                                    length(object@w)))) {
+      stop("avail_energy argument must have dimensions: no. species (",
+           nrow(object@species_params), ") x no. size bins (",
+           length(object@w), ")")
+    }
+    
+    # critical feeding level is the proportion metabolism takes from the intake
+    f = sweep(object@metab,2,(object@intake_max * object@species_params$alpha)[1,],"/")
+    return(f)
+  } else {
+    if (missing(time_range)) {
+      time_range <- dimnames(object@n)$time
+    }
+    time_elements <- get_time_elements(object, time_range)
+    feed_time <- aaply(which(time_elements), 1, function(x) {
+      # Necessary as we only want single time step but may only have 1
+      # species which makes using drop impossible
+      n <- array(object@n[x, , ], dim = dim(object@n)[2:3])
+      dimnames(n) <- dimnames(object@n)[2:3]
+      feed <- getCriticalFeedingLevel(object@params, n = n, n_pp = object@n_pp[x, ], n_bb = object@n_bb[x, ], n_aa = object@n_aa[x, ])
+      return(feed)
+    }, .drop = drop)
+    return(feed_time)
+  }
+}
 
 
 #' Get predation rate
@@ -750,7 +788,7 @@ getMort <- function(object, n, n_pp, n_bb, n_aa, effort, intakeScalar, metScalar
              nrow(object@species_params), ") x no. size bins (",
              length(object@w), ")")
     }
-    return(m2 + object@mu_b*morScalar + getFMort(object, effort = effort) + getSMort(object, n=n, n_pp=n_pp, n_bb = n_bb, n_aa = n_aa, e = e, metScalar = metScalar)) 
+    return(m2 + object@mu_b*morScalar + getFMort(object, effort = effort) + getSMort(object, n=n, n_pp=n_pp, n_bb = n_bb, n_aa = n_aa, e = e, metScalar = metScalar) + getSenMort(object, n = n)) 
 }
 
 #' Alias for getMort
@@ -864,29 +902,49 @@ getSMort <- function(object, n, n_pp, n_bb, n_aa, intakeScalar, metScalar,
 #'
 #' @return A two dimensional array of instantaneous senescence mortality (species x size). 
 
-getSenMort <- function(object, n){
-  if (!all(dim(e) == c(nrow(object@species_params), length(object@w)))) {
-    stop("e argument must have dimensions: no. species (",
-         nrow(object@species_params), ") x no. size bins (",
-         length(object@w), ")")
-  }
-  
-  k.sm <- 0.5
-  xsw <- 0.9
-  sen.e <- 3
-  print(1)
-  temp1 <- xsw*object@species_params$w_inf
-  print(temp1)
-  print(object@w)
-  temp <- object@w-xsw*object@species_params$w_inf
-  print(temp)
-  print(2)
-  
-  mu_Sen = k.sm * 10^(sen.e*(object@w-xsw*object@species_params$w_inf))
-  print(dim(mu_Sen))
+# getSenMort <- function(object, n){
+#   if (!all(dim(e) == c(nrow(object@species_params), length(object@w)))) {
+#     stop("e argument must have dimensions: no. species (",
+#          nrow(object@species_params), ") x no. size bins (",
+#          length(object@w), ")")
+#   }
+#   
+#   k.sm <- 0.5
+#   xsw <- 0.9
+#   sen.e <- 3
+#   print(1)
+#   temp1 <- xsw*object@species_params$w_inf
+#   print(temp1)
+#   print(object@w)
+#   temp <- object@w-xsw*object@species_params$w_inf
+#   print(temp)
+#   print(2)
+#   
+#   mu_Sen = k.sm * 10^(sen.e*(object@w-xsw*object@species_params$w_inf))
+#   print(dim(mu_Sen))
+# 
+#   return(mu_Sen)
+# }
 
-  return(mu_Sen)
+getSenMort <- function(object, n){
+ 
+m_min = 0.1
+m_max = 1
+m1 = 1
+
+Omort <- matrix(0,ncol=length(object@w),nrow=dim(object@species_params)[1],dimnames = list(object@species_params$ecotype,object@w))
+for (iSpecies in 1:dim(Omort)[1])
+{
+  size = (object@w[which(object@w >= object@species_params$w_mat[iSpecies])[1]:which(object@w >= object@species_params$w_inf[iSpecies])[1]])
+  sizeN = size/size[length(size)]
+  m_rate <- m_min + (m_max-m_min)* exp(-m1* 1/sizeN)
+  a <- length(c(rep(0,(which(size[1]==object@w)-1)), m_rate, rep(0,length(object@w)-(which(size[length(size)]==object@w)))))
+  if (a != 100) print(a)
+  Omort[iSpecies,] <- c(rep(0,(which(size[1]==object@w)-1)), m_rate, rep(0,length(object@w)-(which(size[length(size)]==object@w))))
 }
+return(Omort)
+}
+
 
 
 #' Get energy rate available for reproduction
@@ -1195,19 +1253,22 @@ getDietComp<- function(object, n,  n_pp, n_bb, n_aa, intakeScalar, diet_comp_all
 #                          return(temperatureScalar)
 # }
 
-tempFun <- function(temperature, t_ref, Ea, c_a, w) # default are 0 for now as deactivation is buggy
+tempFun <- function(w, temperature, t_ref, t_d = 25, Ea, c_a, Ed = 0, c_d = 0) # default are 0 for now as deactivation is buggy
 {
   # tempFun returns a matrix with w (size) as columns and temperature as rows
-
+  k = 8.617332e-5 # Boltzmann constant 
   # equation
   # (w^(c_a*(temperature-t_ref)))  *exp((-Ea/8.617332e-5)*((1/temperature) - (1/t_ref)))
   # *(1/(w^(c_d*(temperature-t_d)))*exp((-Ed/8.617332e-5)*((1/temperature) - (1/t_d))))
   
   temperature <- temperature + 273 # converting to Kelvin from Celcius
   t_ref <- t_ref + 273
+  t_d <- t_d + 273
+  
+temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *exp((-Ea/k)*((1/temperature) - (1/(t_ref))))) 
 
-  temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *exp((-Ea/8.617332e-5)*((1/temperature) - (1/(t_ref))))) 
-
+ 
+                         
   return(temperatureScalar)
 }
 
