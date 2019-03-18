@@ -280,17 +280,13 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     B <- matrix(0, nrow = no_sp, ncol = no_w)
     S <- matrix(0, nrow = no_sp, ncol = no_w)
     
-    
     # Set initial population
     if (missing(prevSim) == TRUE) # RF ####
     {
-      # print("dim(sim@n)")
-      # print(dim(sim@n))
     sim@n[1,,] <- initial_n # probably need to change/tweak this bit
     sim@n_pp[1,] <- initial_n_pp
     sim@n_bb[1,] <- initial_n_bb
     sim@n_aa[1,] <- initial_n_aa
-    
     # initialise n and nPP
     # We want the first time step only but cannot use drop as there may only be a single species
     n <- array(sim@n[1, , ], dim = dim(sim@n)[2:3])
