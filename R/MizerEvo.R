@@ -6,8 +6,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     max_w_inf = 1e5, # maximum weight of sp
                     no_w = 100, # number of size bins community spectrum
                     min_w = 0.001, #min size bin of community spectrum/The smallest size of the species community size spectrum
-                    max_w = max_w_inf * 1.1, #max size bin of both spectrum
-                    min_w_pp = 1e-10, #min size bin of background size spectrum
+                    # max_w = max_w_inf * 1.1, #max size bin of both spectrum
+                    # min_w_pp = 1e-10, #min size bin of background size spectrum
                     no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
                     w_pp_cutoff = 1, # cut of size of the background spectrum
                     k0 = 50, # recruitment adjustment parameter
@@ -99,8 +99,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                        max_w_inf = max_w_inf,
                        no_w = no_w, 
                        min_w = min_w, 
-                       max_w = max_w,
-                       min_w_pp = min_w_pp, 
+                       # max_w = max_w,
+                       # min_w_pp = min_w_pp, 
                        w_pp_cutoff = w_pp_cutoff,
                        k0 = k0, 
                        n = n, 
@@ -263,7 +263,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     no_sp = dim(param@species_params)[1]
     
     # Recreate the "param" object needed for the projection
-    param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
+    param <- MizerParams(param@species_params, no_w = no_w,  w_pp_cutoff = w_pp_cutoff, 
                          n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
@@ -292,7 +292,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
-    param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
+    param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff, 
                          n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
@@ -462,7 +462,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           }
           
           # Recreate the "param" object needed for the projection
-          trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
+          trait_params <- MizerParams(sim$data@params@species_params,  no_w = no_w, w_pp_cutoff = w_pp_cutoff, 
                                       n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                                       # normalFeeding = normalFeeding, tau = tau, 
                                       interaction = interaction)
@@ -559,7 +559,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
-      param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
+      param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff, 
                            n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                            # normalFeeding = normalFeeding, tau = tau,
                            interaction = interaction)
@@ -594,7 +594,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       interactionSave <- matrix(0.5,ncol = dim(SummaryParams)[1], nrow = dim(SummaryParams)[1])
     }
     # Update all the other param from the dataframe
-    FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
+    FinalParam <- MizerParams(SummaryParams, no_w = no_w, w_pp_cutoff = w_pp_cutoff, 
                               n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
