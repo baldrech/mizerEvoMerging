@@ -1,5 +1,10 @@
 # useful function
 
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
 
 # give it an object and it will return the biomass data ready to be plotted (for species and phenotypes)
 biom <-function(object,phenotype=T)
@@ -122,25 +127,25 @@ finalTouch <- function(result, temperature, dt = 0.1, print_it = T)
   
   for(iSpecies in 1:dim(sim@params@species_params)[1]) # fill the scalars arrays
   {
-    metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d, 
+    metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@species_params$t_d[iSpecies], 
                                           Ea = sim@params@species_params$ea_met[iSpecies], 
                                           c_a = sim@params@species_params$ca_met[iSpecies],
                                           Ed = sim@params@species_params$ed_met[iSpecies], 
                                           c_d = sim@params@species_params$cd_met[iSpecies],w = sim@params@w)
     
-    matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+    matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@species_params$t_d[iSpecies],
                                           Ea = sim@params@species_params$ea_mat[iSpecies], 
                                           c_a = sim@params@species_params$ca_mat[iSpecies],
                                           Ed = sim@params@species_params$ed_mat[iSpecies], 
                                           c_d = sim@params@species_params$cd_mat[iSpecies],w = sim@params@w)
     
-    morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+    morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@species_params$t_d[iSpecies],
                                           Ea = sim@params@species_params$ea_mor[iSpecies], 
                                           c_a = sim@params@species_params$ca_mor[iSpecies],
                                           Ed = sim@params@species_params$ed_mor[iSpecies], 
                                           c_d = sim@params@species_params$cd_mor[iSpecies],w = sim@params@w)
     
-    intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@t_d,
+    intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = sim@params@t_ref, t_d = sim@params@species_params$t_d[iSpecies],
                                           Ea = sim@params@species_params$ea_int[iSpecies], 
                                           c_a = sim@params@species_params$ca_int[iSpecies],
                                           Ed = sim@params@species_params$ed_int[iSpecies], 
@@ -474,6 +479,11 @@ superOpt <- function(object, opt = 10) # optimise the run to make them lighter
   object@n_pp = object@n_pp[seq(10,dim(object@n_pp)[1],opt),]
   object@n_aa = object@n_aa[seq(10,dim(object@n_aa)[1],opt),]
   object@n_bb = object@n_bb[seq(10,dim(object@n_bb)[1],opt),]
+  object@metTempScalar = object@metTempScalar[,,seq(10,dim(object@metTempScalar)[3],opt)]
+  object@matTempScalar = object@matTempScalar[,,seq(10,dim(object@matTempScalar)[3],opt)]
+  object@morTempScalar = object@morTempScalar[,,seq(10,dim(object@morTempScalar)[3],opt)]
+  object@intTempScalar = object@intTempScalar[,,seq(10,dim(object@intTempScalar)[3],opt)]
+  
   nameTemp <- names(dimnames(object@effort))
   object@effort = as.matrix(object@effort[seq(10,dim(object@effort)[1],opt),])
   names(dimnames(object@effort)) <- nameTemp # as effort can be a one column matrix, you lose the dimension names in the process
