@@ -1,4 +1,4 @@
-# Project method for the size based modelling package mizer
+# Project function for the size based modelling package mizer
 
 # Copyright 2012 Finlay Scott and Julia Blanchard.
 # Copyright 2018 Gustav Delius and Richard Southwell.
@@ -8,21 +8,16 @@
 # Distributed under the GPL 3 or later 
 # Maintainer: Gustav Delius, University of York, <gustav.delius@york.ac.uk>
 
-# project can dispatch with effort being different classes (missing, numeric,
-# array).
-
 #' @useDynLib mizer
 #' @importFrom Rcpp sourceCpp
 NULL
 
 
-#' project method for the size based modelling
+#' Project size spectrum forward in time
 #' 
-#' Runs the size-based model simulation and projects the size based model
-#' through time. \code{project} is called using an object of type
-#' \linkS4class{MizerParams} and an object that contains the effort of the
-#' fishing gears through time. The method returns an object of type
-#' \linkS4class{MizerSim} which can then be explored with a range of summary and
+#' Runs the size spectrum model simulation.
+#' The function returns an object of type
+#' \linkS4class{MizerSim} that can then be explored with a range of summary and
 #' plotting methods.
 #' 
 #' @param params A \linkS4class{MizerParams} object
@@ -77,7 +72,9 @@ NULL
 #' order of species must be the same as in the \code{MizerParams} argument. If
 #' the initial population is not specified, the argument is set by default by
 #' the \code{get_initial_n} function which is set up for a North Sea model.
-#' @return An object of type \code{MizerSim}.
+#' 
+#' @return An object of type \linkS4class{MizerSim}.
+#' 
 #' @export
 #' @seealso \code{\link{MizerParams}}
 #' @examples
@@ -202,25 +199,25 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     
     for(iSpecies in 1:dim(params@species_params)[1]) # fill the scalars arrays
     {
-      metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d, 
+      metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@species_params$t_d[iSpecies], 
                                             Ea = params@species_params$ea_met[iSpecies], 
                                             c_a = params@species_params$ca_met[iSpecies],
                                             Ed = params@species_params$ed_met[iSpecies], 
                                             c_d = params@species_params$cd_met[iSpecies],w = params@w)
       
-      matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
+      matTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@species_params$t_d[iSpecies],
                                             Ea = params@species_params$ea_mat[iSpecies], 
                                             c_a = params@species_params$ca_mat[iSpecies],
                                             Ed = params@species_params$ed_mat[iSpecies], 
                                             c_d = params@species_params$cd_mat[iSpecies],w = params@w)
       
-      morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
+      morTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@species_params$t_d[iSpecies],
                                             Ea = params@species_params$ea_mor[iSpecies], 
                                             c_a = params@species_params$ca_mor[iSpecies],
                                             Ed = params@species_params$ed_mor[iSpecies], 
                                             c_d = params@species_params$cd_mor[iSpecies],w = params@w)
       
-      intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@t_d,
+      intTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@species_params$t_d[iSpecies],
                                             Ea = params@species_params$ea_int[iSpecies], 
                                             c_a = params@species_params$ca_int[iSpecies],
                                             Ed = params@species_params$ed_int[iSpecies], 
@@ -272,10 +269,11 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     sex_ratio <- 0.5
     
     #create a matrix for diet comparison. For prey it has the number of columns set at no_sp+3 because we have 3 background spectra
-    sim@diet_comp<-array(0, c(no_sp, no_w, no_sp + 3, no_w_full), 
-                         dimnames=list( predator=as.character(params@species_params$species), pred_size = params@w, 
-                                        prey = c(as.character(params@species_params$species), "plankton", "benthos", "algae"),
-                                        prey_size = params@w_full))
+    # commenting as takes lots of time to compute somehow RF
+    # sim@diet_comp<-array(0, c(no_sp, no_w, no_sp + 3, no_w_full), 
+                         # dimnames=list( predator=as.character(params@species_params$species), pred_size = params@w, 
+                         #                prey = c(as.character(params@species_params$species), "plankton", "benthos", "algae"),
+                         #                prey_size = params@w_full))
     
     
     # Matrices for solver
@@ -283,17 +281,19 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     B <- matrix(0, nrow = no_sp, ncol = no_w)
     S <- matrix(0, nrow = no_sp, ncol = no_w)
     
-    
     # Set initial population
     if (missing(prevSim) == TRUE) # RF ####
     {
-      # print("dim(sim@n)")
-      # print(dim(sim@n))
+      if (dim(sim@n_pp)[2] != length(initial_n_pp)){ # if this happens it means that the largest species went extinct in the previous run and that w_full shrank
+        # I need now to adapt the old initial_n_pp to fit the new length of sim@n_pp
+        # Will have to do this for algea and benthos one day too
+print("n_pp issue")
+        
+      }
     sim@n[1,,] <- initial_n # probably need to change/tweak this bit
     sim@n_pp[1,] <- initial_n_pp
     sim@n_bb[1,] <- initial_n_bb
     sim@n_aa[1,] <- initial_n_aa
-    
     # initialise n and nPP
     # We want the first time step only but cannot use drop as there may only be a single species
     n <- array(sim@n[1, , ], dim = dim(sim@n)[2:3])
@@ -362,17 +362,18 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     if (diet_steps>0){
       diet_comp_all<- array(0, dim(sim@diet_comp))
     }
-    
+
     # cat(sprintf("number of time_step = %i\n",t_steps))
     for (i_time in init:t_steps) {
       
-      if(i_time %% 100 == 0) 
+      if(i_time %% 100 == 0)
       {
-        cat(sprintf("i_time = %i\n",i_time))
-        cat(sprintf("temp = %f\n",temperature_dt[i_time]))
+      cat(sprintf("i_time = %i\n",i_time))
+        # cat(sprintf("temp = %f\n",temperature_dt[i_time]))
       }
 
         # Do it piece by piece to save repeatedly calling methods
+
         # Calculate amount E_{a,i}(w) of available food
         avail_energy <- getAvailEnergy(sim@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa) #, intakeScalar = sim@intTempScalar[,,i_time])
         
@@ -457,11 +458,13 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                                 w_min_idx = sim@params@w_min_idx)
         # Dynamics of plankton spectrum uses a semi-chemostat model (de Roos - ask Ken)
         # We use the exact solution under the assumption of constant mortality during timestep
+
         ###TODO?#### 
         # now we need to scale r_pp (not rr_pp!) with the temperature response. 
         # this could be done at the start again where we create rr_pp object. this means it will have an extra time dimension 
         # or we calcualte rr_pp scalar here at every time step, which might be simpler 
-        tmp <- (sim@params@rr_pp * sim@params@cc_pp / (sim@params@rr_pp + m2_background))
+        tmp <- sim@params@rr_pp * sim@params@cc_pp / (sim@params@rr_pp + m2_background)
+
         n_pp <- tmp - (tmp - n_pp) * exp(-(sim@params@rr_pp + m2_background) * dt)
         
         ##AAsp####
@@ -490,14 +493,16 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
           for (i in 1:no_sp)
           {
             if (sum(n[i,]) < extinction &
-                0 < sum(n[i,]))
+                # 0 < sum(n[i,]) &
+                sim@params@species_params$extinct[i] == F 
+                )
               # if species abundance under extinction threshold but not already extinct, kill it
             {
               n[i,] = 0
               # find the name of the species going extinct
               toto = which(sim@params@species_params$ecotype == rownames(n)[i])
               
-              if (sim@params@species_params$extinct[toto] == FALSE)
+              # if (sim@params@species_params$extinct[toto] == FALSE)
                 # security for bugs
                 if (print_it) cat(
                   sprintf(
@@ -507,27 +512,28 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                   )
                 )
               
-              else if (sim@params@species_params$extinct[toto] != FALSE)
-              {
-                if (print_it)  cat(
-                  sprintf(
-                    "Species %s at time %s is a zombie\n",
-                    sim@params@species_params$ecotype[toto],
-                    i_time
-                  )
-                ) # to check if they come back from the dead
-                sim@params@species_params$erro[toto] = 1 # if this happen it will be noted by a 1 in the sp ID
-              }
+              # else if (sim@params@species_params$extinct[toto] != FALSE)
+              # {
+              #   if (print_it)  cat(
+              #     sprintf(
+              #       "Species %s at time %s is a zombie\n",
+              #       sim@params@species_params$ecotype[toto],
+              #       i_time
+              #     )
+              #   ) # to check if they come back from the dead
+              #   sim@params@species_params$erro[toto] = 1 # if this happen it will be noted by a 1 in the sp ID
+              # }
               
               sim@params@species_params$extinct[toto] <-
                 i_time + (checkpoint - 1) * t_max / dt # update the extinction status
               #print(sim@params@species_params)
               if (sim@params@species_params$extinct[toto] < sim@params@species_params$pop[toto])
                 sim@params@species_params$error[toto] = 2 # if this happen it will be noted by a 2 in the sp ID
-            }
+            } 
           }
           if (dim(sim@params@species_params[sim@params@species_params$extinct != FALSE,])[1] == dim(sim@params@species_params)[1])
-            umbrella = TRUE # if this is true, evrything is dead
+            {umbrella = TRUE # if this is true, everything is dead
+          cat(sprintf("everything is dead :(\n"))}
         }
         
         
@@ -580,29 +586,28 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                  {
                    if (M3List[[1]][i] == i_time)
                    {
-                     # old version
-                     #   residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
-                     # resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
-                     # resident <- rownames(residentPool)[resident] # this is his name now
-                     #new version
                      residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
-                     #print(residentPool)
-                     # to block exponential evolution of species, I'm first picking a lineage randomly and then an ecotype in this lineage
-                     lineagePool = unique(residentPool$species)
-                     #print(lineagePool)
-                     
-                     if (length(lineagePool) == 1) lineage = lineagePool
-                     
-                     else lineage = sample(lineagePool, 1)
-                     
-                     #print(lineage)
-                     residentPool=residentPool[residentPool$species == lineage,]
-                     #print(residentPool)
-                     resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
-                     #print(resident)
-                     
-                     resident <- residentPool$ecotype[resident]
-                     mute = TRUE
+                     #print(residentPool[,c(17,21)])
+                     speciesPool = unique(residentPool$species) # which species are available to produce new phenotypes
+                     challengers <- NULL
+                     for (iSpecies in speciesPool) # do the picking for every species
+                     {
+
+                         #print(iSpecies)
+                         #print(residentPool[residentPool$species == iSpecies,]$ecotype)
+                         
+                         if (length(residentPool[residentPool$species == iSpecies,]$ecotype)>1) 
+                         {resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
+                         } else {resident <- residentPool[residentPool$species == iSpecies,]$ecotype}
+                         mute = TRUE
+                         challengers <- c(challengers,resident)
+                        
+                     }
+                     if (length(challengers)>1){
+                       cat(sprintf("Possible new phenotypes\n"))
+                       # print(challengers)
+                       resident <- sample(challengers,1) # select only one to mutate (I know I'm lazy)
+                     } else if (length(challengers == 1)) resident <- challengers
                    }}
                },
                M4 = { # multiple residents at one time, not sure if it still works
@@ -661,7 +666,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
             i_time
           ))}
         
-        if (mute == TRUE & i_time!=t_steps) { # if  Iget a mutant on last time step I get bugs because the sim restart at last +1 time step
+        if (mute == TRUE & i_time!=t_steps & i_time!=t_steps-1) { # if  Iget a mutant on last time step I get bugs because the sim restart at last +1 time step, also need at least 2 time steps at the end as the code is optimised for matrices and not vector (cf stitch)
           # save the data
           sim_stop = sim
           # I need to get rid of the first or last line for no overlapping
@@ -695,7 +700,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
 #' This function uses the model parameters and other parameters to calculate 
 #' initial population abundances for the community populations. These initial 
 #' abundances should be reasonable guesses at the equilibrium values. The 
-#' returned population can be passed to the \code{project} method.
+#' returned population can be passed to the \code{project} function.
 #' 
 #' @param params The model parameters. An object of type \linkS4class{MizerParams}.
 #' @param a A parameter with a default value of 0.35.
@@ -717,7 +722,7 @@ get_initial_n <- function(params, n0_mult = NULL, a = 0.35) {
     initial_n <- array(NA, dim = c(no_sp, no_w))
     dimnames(initial_n) <- dimnames(params@intake_max)
     # N = N0 * Winf^(2*n-q-2+a) * w^(-n-a)
-    # Reverse calc n and q from intake_max and search_vol slots (could add get_n as method)
+    # Reverse calc n and q from intake_max and search_vol slots (could add get_n function)
     n <- (log(params@intake_max[,1] / params@species_params$h) / log(params@w[1]))[1]
     q <- (log(params@search_vol[,1] / params@species_params$gamma) / log(params@w[1]))[1]
     # Guessing at a suitable n0 value based on kappa - this was figured out using trial and error and should be updated

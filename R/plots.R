@@ -868,7 +868,7 @@ plotFMort <- function(sim, species = dimnames(sim@n)$sp,
 #' plotGrowthCurves(sim, species = "Cod", max_age = 24)
 #' }
 plotGrowthCurves <- function(object, species,
-            max_age = 20, percentage = FALSE, print_it = TRUE) {
+            max_age = 20, percentage = TRUE, print_it = TRUE) {
     if (is(object, "MizerSim")) {
         sim <- object
         if (missing(species)) {
@@ -929,6 +929,8 @@ plotGrowthCurves <- function(object, species,
                 p <- p + geom_line(data = dat, aes(x = x, y = y))
             }
         }
+        
+        if(percentage) p <- p + scale_y_continuous(breaks = seq(0,100,by = 20))
 
         if (print_it) return(p)
     } else {
@@ -1194,9 +1196,10 @@ setMethod("plot", signature(x = "MizerSim", y = "missing"),
 ##@#%@#$%^&*# Romain's plots #@%*^*@##---------------------
 
 plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n)$time)),max(as.numeric(dimnames(object@n)$time))), 
-                         phenotype = TRUE, species = NULL, SpIdx = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(NA,NA)){
+                         phenotype = TRUE, species = NULL, trait = NULL, SpIdx = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(NA,NA)){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
-  
+  jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000")) # colorful gradient
+  min_value <- 1e-30
   # get the phenotype biomass through time (need at least 2 time steps for now)
   biomass <- getBiomass(object)
   time_elements <- get_time_elements(object,time_range)
@@ -1205,7 +1208,7 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
   # getting rid of the species that went extinct during the initialisation
   if (is.null(SpIdx))
     for (i in unique(object@params@species_params$species))
-      if (sum(biomass[, i]) != 0 & dim(object@params@species_params[object@params@species_params$species == i, ])[1] != 1)
+      if (sum(biomass[, i]) != 0) # & dim(object@params@species_params[object@params@species_params$species == i, ])[1] != 1)
         SpIdx = c(SpIdx, i)
   
   # sum the phenotype biomass per species
@@ -1228,28 +1231,28 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
   {
     Biom <- melt(x) # melt for ggplot
     colnames(Biom) = c("time","phen","value")
-    # Due to log10, need to set a minimum value
-    min_value <- 1e-30
-    Biom <- Biom[Biom$value >= min_value,]
+
     # create a species column
     Biom$sp = sapply(Biom$phen, function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
     return(Biom)
   }
-  
-  if (phenotype) BiomPhen <- plotBiom(biomass)
-  
   BiomSp <- plotBiom(biomassSp)
+  BiomSp <- BiomSp[BiomSp$value >= min_value,]
   
-  # multiple possibilities: which species? with or without phenotypes?
-  if (!is.null(species)) BiomSp <- BiomSp[BiomSp$sp == species, ]
   
-  if (phenotype)
+  if (phenotype) 
   {
-    if (!is.null(species)) BiomPhen <- BiomPhen[BiomPhen$sp == species, ]
+    
+    BiomPhen <- plotBiom(biomass)
+    if(!is.null(trait))
+      BiomPhen$trait <- rep(trait, each = length(unique(BiomPhen$time)))
+    
+    BiomPhen <- BiomPhen[BiomPhen$value >= min_value,]
+
     p <- ggplot(BiomSp) +
       geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp), size = 1.2) +
       geom_line(data = BiomPhen, aes(x = time, y = value, colour = as.factor(sp), group = phen), alpha = 0.2) +
-      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(-30:4))) +
+      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
       scale_x_continuous(name = "Time in years") +
       labs(color='Species') +
       theme(panel.background = element_rect(fill = "white", color = "black"),
@@ -1258,7 +1261,41 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
       scale_colour_manual(values=cbPalette)+ # colorblind
       ggtitle("Community biomass") 
     
+    
+    if (!is.null(species)) 
+    {
+      BiomPhen <- BiomPhen[BiomPhen$sp == species, ]
+      BiomSp <- BiomSp[BiomSp$sp == species, ]
+    plotTitle <- paste("Species",species)
+    
+    p <- ggplot(BiomPhen) +
+      geom_line(aes(x = time, y = value, group = phen), alpha = .75) +
+      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
+      scale_x_continuous(name = "Time in years") +
+      # scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
+      ggtitle(plotTitle) 
+    
+    if(!is.null(trait))
+    {
+    plotTitle <- paste("Trait of species",species)
+    
+    p <- ggplot(BiomPhen) +
+      geom_line(aes(x = time, y = value, colour = trait, group = trait), alpha = 1) +
+      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
+      scale_x_continuous(name = "Time in years") +
+      scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
+      ggtitle(plotTitle) 
+    }
+    }
+    
   } else {
+    
     p <- ggplot(BiomSp) +
       geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp), size = 1.2) +
       scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(-30:4))) +
@@ -1271,18 +1308,17 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
       ggtitle("Community biomass") 
   }
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(BiomSp) else if(print_it) return(p)
 }
 
 
-plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), min_w =min(object@params@w)/100, 
+plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), min_w =min(object@params@w)/100, ylim = c(NA,NA),
                    biomass = TRUE, print_it = TRUE, species = TRUE, save_it = FALSE, nameSave = "SizeSpectrum.png", returnData = FALSE, ...){
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
-  min_w = 0.001
-  
+  # min_w = 0.001
   time_elements <- get_time_elements(object,time_range)
   spec_n <- apply(object@n[time_elements,,,drop=FALSE],c(2,3), mean)
   pkt_n <- apply(object@n_pp[time_elements,,drop=FALSE],2,mean)
@@ -1297,7 +1333,6 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
     ben_n <- ben_n * object@params@w_full
     y_axis_name = "Biomass"
   }
-  
   # Make data.frame for plot
   plot_datSP <- data.frame(value = c(spec_n), Species = dimnames(spec_n)[[1]], w = rep(object@params@w, each=nrow(object@params@species_params)), bloodline = object@params@species_params$species)
   plot_datPkt <- data.frame(value = c(pkt_n), Species = "Phytoplankton", w = object@params@w_full)
@@ -1320,7 +1355,6 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
     }
     plot_datSP <- data.frame(value = c(spec_sp), Species = dimnames(spec_sp)[[1]], w = rep(object@params@w, each=length(SpIdx)))
   }
-  
   # lop off 0s in background and apply min_w
   plot_datSP <- plot_datSP[(plot_datSP$value > 0) & (plot_datSP$w >= min_w),]
   plot_datPkt <- plot_datPkt[(plot_datPkt$value > 0) & (plot_datPkt$w >= min_w),]
@@ -1335,12 +1369,13 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
       geom_line(data = plot_datPkt, aes(x = w, y = value, group = Species),alpha = 0.5, color = "blue", size = 1.5) +
       geom_line(data = plot_datAlg, aes(x = w, y = value, group = Species),alpha = 0.5, color = "green", size = 1.5) +
       geom_line(data = plot_datBen, aes(x = w, y = value, group = Species),alpha = 0.5, color = "yellow", size = 1.5) +
-      scale_x_log10(name = "Size in g", breaks = c(1 %o% 10^(-6:5)))+
-      scale_y_log10(name = "Abundance density in individuals.m^-3") + #, limits = c(1e-6,1e4)) +
-      theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"))+
-      theme_bw()+
-      #scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
-      #scale_color_grey(name = "Species")+ # grey
+      scale_x_continuous(name = "Size in g", trans = "log10", breaks = c(1 %o% 10^(-6:5)))+
+      scale_y_continuous(name = "Abundance density in individuals.m^-3", limits = ylim, trans = "log10") +
+      labs(color='Species') +
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
+      scale_colour_manual(values=cbPalette)+ # colorblind
       ggtitle("Size spectrum")
   }
   
@@ -1349,20 +1384,20 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
     p <- ggplot(plot_datSP) + 
       geom_line(aes(x=w, y = value, colour = as.factor(bloodline), group = Species)) + 
       geom_line(data = plot_datPkt, aes(x = w, y = value, group = Species),alpha = 0.5, color = "blue", size = 1.5) +
-      geom_line(data = plot_datAlg, aes(x = w, y = value, group = Species),alpha = 0.5, color = "greem", size = 1.5) +
+      geom_line(data = plot_datAlg, aes(x = w, y = value, group = Species),alpha = 0.5, color = "green", size = 1.5) +
       geom_line(data = plot_datBen, aes(x = w, y = value, group = Species),alpha = 0.5, color = "yellow", size = 1.5) +
-      scale_x_log10(name = "Size in g", breaks = c(1 %o% 10^(-6:5)))+
-      scale_y_log10(name = "Abundance density in individuals.m^-3", limits = c(1e-35,1e4)) +
-      theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"))+
-      theme_bw()+
+      scale_x_continuous(name = "Size in g", trans = "log10", breaks = c(1 %o% 10^(-6:5)))+
+      scale_y_continuous(name = "Abundance density in individuals.m^-3", limits = ylim, trans = "log10") +
+      labs(color='Species') +
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
       scale_colour_manual(values=cbPalette)+ # colorblind
-      #scale_color_grey(name = "Species")+ # grey
       ggtitle("Size spectrum")
     
   }
-  
-  
-  if(save_it) ggsave(plot = p, filename = nameSave)
+
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_datSp) else if(print_it) return(p)
 }
@@ -1428,7 +1463,7 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
       
       ggtitle("Feeding level through time")
     
-    if(save_it) ggsave(plot = p, filename = nameSave)
+    if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
     
     if (returnData) return(list(plot_dat,plot_crit)) else if(print_it) return(p)
     
@@ -1478,12 +1513,12 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
           legend.key = element_rect(fill = "white"))+
     ggtitle(name)
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave,width = 18, height = 18,units = "cm" )
   
   if (returnData) return(list(plot_dat,Critfeed)) else if(print_it) return(p)
 }
 
-plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F,
+plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F, ylim = c(NA,NA),
                        nameSave = "Growth.png",...){
   
   time_elements <- get_time_elements(object,time_range)
@@ -1522,7 +1557,7 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
   p <- ggplot(plot_dat) + 
     geom_line(aes(x=w, y = value, colour = Species)) + 
     scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
-    scale_y_continuous(name = "instantaneous growth", trans ="log10")+
+    scale_y_continuous(name = "instantaneous growth", trans ="log10", limits = ylim)+
     theme(legend.title=element_blank(),
           legend.justification=c(1,1),
           legend.key = element_rect(fill = "white"),
@@ -1530,7 +1565,7 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_dat) else if(print_it) return(p)
 }
@@ -1590,7 +1625,7 @@ plotStarvation <- function(object, time_range = max(as.numeric(dimnames(object@n
           legend.key = element_rect(fill = "white"))+
     ggtitle(name)
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_dat) else if(print_it) return(p)
 }
@@ -1687,12 +1722,16 @@ plotSpawn <- function(object, time_range = max(as.numeric(dimnames(object@n)$tim
     spawn = spawn_sp
   }
   
+  a <- c(object@params@species_params$w_inf[1:9]) # to get vline of different col, need to create a data frame
+  vlines <- data.frame(xint = a,grp = c(1:9))
+  
   name = paste("Spawn level at time",time_range,sep=" ")
   plot_dat <- data.frame(value = c(spawn), Species = dimnames(spawn)[[1]], w = rep(object@params@w, each=length(dimnames(spawn)[[1]])))
   p <- ggplot(plot_dat) + 
     geom_line(aes(x=w, y = value, colour = Species)) + 
     scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
     scale_y_continuous(name = "Energy allocated to spawning", trans ="log10")+
+    geom_vline(data = vlines,aes(xintercept = xint,colour = as.factor(grp)), linetype = "dashed") + 
     theme(legend.title=element_blank(),
           legend.justification=c(1,1),
           legend.key = element_rect(fill = "white"),
@@ -1700,13 +1739,71 @@ plotSpawn <- function(object, time_range = max(as.numeric(dimnames(object@n)$tim
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
+}
+
+plotPredRate <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, ylim = c(NA,NA),
+                         print_it = T, returnData = F, save_it = F, nameSave = "PredRate.png",...){
+  
+  time_range = max(as.numeric(dimnames(object@n)$time))
+  time_elements <- get_time_elements(object,time_range)
+  spawn_time <- aaply(which(time_elements), 1, function(x){
+    # Necessary as we only want single time step but may only have 1 species which makes using drop impossible
+    
+    n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+    dimnames(n) <- dimnames(object@n)[2:3]
+    spawn <- getPredRate(object@params, n=n, n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,], 
+                         intakeScalar = object@intTempScalar[,,x])
+    return(spawn)})
+  
+  #spawn <- apply(spawn_time, c(2,3), mean) # use this when I will have time_range on more than one time
+  spawn = spawn_time
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    dimnames(spawn)$sp = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    spawn_sp = matrix(data = NA, ncol = dim(spawn)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(spawn)$w)) # prepare the new object
+    names(dimnames(spawn_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = spawn # save to manip
+      temp[which(rownames(spawn) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(spawn)==i)) # do the mean (in 2 steps)
+      spawn_sp[which(rownames(spawn_sp)==i), ] = temp
+    }
+    spawn = spawn_sp
+  }
+  
+  a <- c(object@params@species_params$w_inf[1:9]) # to get vline of different col, need to create a data frame
+  vlines <- data.frame(xint = a,grp = c(1:9))
+  
+  name = paste("Predation rate at time",time_range,sep=" ")
+  plot_dat <- data.frame(value = c(spawn), Species = dimnames(spawn)[[1]], w = rep(object@params@w_full, each=length(dimnames(spawn)[[1]])))
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=w, y = value, colour = Species)) + 
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-7:5))) + 
+    scale_y_continuous(name = "Potential death rate from predator", trans ="log10", limits = ylim)+
+    geom_vline(data = vlines,aes(xintercept = xint,colour = as.factor(grp)), linetype = "dashed") + 
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 
-plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 0, cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2),
+plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 0, traitID = object@params@species_params$ed_int,
+                       cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2),
                        print_it = T, returnData = F, save_it = F, nameSave = paste("CohortSpecies",iSpecies,".png",sep=""))
 {
   # setting up some parameters
@@ -1730,6 +1827,8 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
     cohortR_sol = array(0, c(no_sp, T+1)); # vector for cohort spawn at size
     cohortW[,1] = object@params@w[1]; # log weight initially (newborn)
     cohortS[,1] = object@n[t_start,,1]; # initial population in spectrum
+    cohortInitPop <- object@n[t_start,,1] * object@params@dw[1] # initial number of individuals per species
+    cohortInitPop[which(cohortInitPop == 0)] <- 1 # the phenotypes with 0 abundance get 1 so dividing by 0 doesn't end the universe
     
     for (t in seq(1,T)){ # within time period you're interested in
       # vector of the previous size bin for every phenotypes
@@ -1737,34 +1836,28 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
       # growth matrix
       growth = getEGrowth(object@params,n = object@n[t_start+t-1,,],n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                           intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1])
-      # update the new size bin with the growth
+      # update the new size bin with the growth / growth is how much more mass you get in the size bin so you just ad both to get the next size bin
       cohortW[PhenIdx,t+1] = cohortW[PhenIdx,t]+dt*diag(growth[PhenIdx,cohortWprev])
       # mortality matrix
       z = getZ(object = object@params, n = object@n[t_start+t-1,,],n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                effort = effort,intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1], morScalar = object@morTempScalar[,,t_start+t-1] )
       # update the amount surviving the time-step
-      cohortS[PhenIdx,t+1] = cohortS[PhenIdx,t]*exp(-dt*diag(z[PhenIdx,cohortWprev]))
-      # need to take global n to have the right amount of resources available but need to take the right fraction at the end for the fitness, as not all the individuals reproducing are part of the cohort.
+      cohortS[PhenIdx,t+1] = cohortS[PhenIdx,t]*exp(-dt*diag(z[PhenIdx,cohortWprev])) # where does the exponential comes from? you cannot just substract as Z is just an instantaneous mortality value?
+      # need to take global n to have the right amount of resources available but need to take the right fraction at the end for the fitness, 
+      # as not all the individuals reproducing are part of the cohort.
       # need to prepare n for no NAN, I just want the n of the specific cohort so I extract the right fraction
-      n = object@n[t_start+t-1,,]#*cohortS[,t]/cohortS[,1] # this is my biomass x fraction
-      #n[!is.finite(n)] <- 0
+      n = object@n[t_start+t-1,,]
       # get the rdi manually to have it spread over size bins
       e_spawning <- getESpawning(object = object@params, n = n,n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                                  intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1])
-      #print(e_spawning[PhenIdx,70:100])
       e_spawning_pop <- apply((e_spawning*n),1,"*",object@params@dw)
-      #print(e_spawning_pop[70:100,PhenIdx])
       rdi <- sex_ratio*(e_spawning_pop * object@params@species_params$erepro)/object@params@w[object@params@w_min_idx] # global rdi
-      #rdi <- rdi*cohortS[,t]/cohortS[,1]
-      #print(rdi[70:100,PhenIdx])
-      # get the total abundance in each species/size combination from PhenIdx and cohortWprev
-      cohortN <- NULL
-      for (i in 1:dim(n)[1]) cohortN <- c(cohortN,n[PhenIdx[i],cohortWprev[i]])
-      # get the proportion of abundance from the followed cohort
-      cohortF <- cohortS[,t]/cohortN
+
+      # get the proportion of abundance from the followed cohort. It's not t+1 as repro and death happens at the same time so we take the value from previous time step
+      cohortF <- cohortS[PhenIdx,t]/cohortS[PhenIdx,1]
       cohortF[!is.finite(cohortF)] <- 0
       # update the total spawn for fitness
-      cohortR[PhenIdx,t+1] = cohortR[PhenIdx,t] + dt*diag(rdi[cohortWprev,PhenIdx])*cohortF
+      cohortR[PhenIdx,t+1] = cohortR[PhenIdx,t] + dt*diag(rdi[cohortWprev,PhenIdx])*cohortF/cohortInitPop[PhenIdx]
       #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
       #print(cohortR[PhenIdx,1:t+1])
     }
@@ -1774,7 +1867,7 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
   rownames(fitness) <- object@params@species_params$ecotype[PhenIdx] # this is their name
   # make it a dataframe and add species and mat size for processing later
   fitness <- as.data.frame(fitness)
-  fitness$trait <- object@params@species_params$ed_int
+  fitness$trait <- traitID
   fitness$species <- object@params@species_params$species
   
   fitness <- fitness[!rowSums(fitness[,-c(dim(fitness)[2]-1,dim(fitness)[2])]) == 0,] # get rid of phenotypes not appeared yet
@@ -1805,23 +1898,23 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
           legend.key = element_rect(fill = "white"))+
     ggtitle("orange > black")
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   toc()
   if (returnData) return(fitness) else if(print_it) return(p)
 }
 
 # require plotCohort Output
-plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotName = "fitnessTemp.png")
+plotFitness <- function(object, save_it = F, print_it = T, returnData = F, SpIdx = 1:9, ylim = c(NA,NA), iTime = NA, plotName = "fitnessTemp.png", returnPlot = T)
 {
   ### data processing ###
   no_sp = length(unique(object$species))
   plotSpList <- vector("list",no_sp)
   
   counterSp = 0
-  for(iSpecies in seq(1:no_sp)) #c(1,6,9)) #
+  for(iSpecies in SpIdx) #c(1,6,9)) #
   {
     counterSp = counterSp +1
-    myMat <- as.data.frame(myData[which(myData$species == iSpecies),])
+    myMat <- as.data.frame(object[which(object$species == iSpecies),])
     
     # then process
     myMat$species <- NULL
@@ -1843,7 +1936,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     # iTime = 5500
     # plot_dat_time <- plot_dat[which(plot_dat$Time == iTime),]
     
-    plotSpList[[counterSp]] <- plot_dat
+    plotSpList[[iSpecies]] <- plot_dat
   }
   
   plotDat <- rbind(data.table::rbindlist(plotSpList)) #,data.table::rbindlist(plotSpListF),data.table::rbindlist(plotSpListN2),data.table::rbindlist(plotSpListF2))
@@ -1872,28 +1965,17 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
   #   
   #   
   # }
+  plotList <- vector("list",no_sp)
   
+  if(!is.na(iTime)) plotDat <- plotDat[(which(plotDat$Time == iTime)),]
   
-  p1 <- ggplot(plotDat[(which(plotDat$Species == 1)),]) +
-    # geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 1") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
+  for(iSpecies in 1:no_sp) # improve that later
+  {
   
-  p2 <- ggplot(plotDat[(which(plotDat$Species == 2)),]) +
+  plotList[[iSpecies]] <- ggplot(plotDat[(which(plotDat$Species == iSpecies)),]) +
     geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 2") +
+    # geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+    scale_y_continuous(trans = "log10", name = paste("Species",iSpecies), limits = ylim) +
     scale_x_continuous(name = NULL) +
     scale_color_gradient(name = "time", low = "black", high = "orange")+
     # facet_grid(.~scenario, scales = "free") +
@@ -1907,120 +1989,139 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
           legend.key = element_rect(fill = "white"))+
     ggtitle(NULL)
   
+  }
   
-  p3 <- ggplot(plotDat[(which(plotDat$Species == 3)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 3") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p4 <- ggplot(plotDat[(which(plotDat$Species == 4)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 4") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p5 <- ggplot(plotDat[(which(plotDat$Species == 5)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    
-    scale_y_continuous(trans = "log10", name = "Species 5") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p6 <- ggplot(plotDat[(which(plotDat$Species == 6)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 6") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p7 <- ggplot(plotDat[(which(plotDat$Species == 7)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 7") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p8 <- ggplot(plotDat[(which(plotDat$Species == 8)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 8") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
-  p9 <- ggplot(plotDat[(which(plotDat$Species == 9)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = "Species 9") +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
+  if (returnPlot) return(plotList)
+  # p2 <- ggplot(plotDat[(which(plotDat$Species == 2)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 2") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # 
+  # p3 <- ggplot(plotDat[(which(plotDat$Species == 3)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 3") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p4 <- ggplot(plotDat[(which(plotDat$Species == 4)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 4") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p5 <- ggplot(plotDat[(which(plotDat$Species == 5)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   
+  #   scale_y_continuous(trans = "log10", name = "Species 5") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p6 <- ggplot(plotDat[(which(plotDat$Species == 6)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 6") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p7 <- ggplot(plotDat[(which(plotDat$Species == 7)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 7") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p8 <- ggplot(plotDat[(which(plotDat$Species == 8)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 8") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
+  # 
+  # p9 <- ggplot(plotDat[(which(plotDat$Species == 9)),]) +
+  #   geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+  #   scale_y_continuous(trans = "log10", name = "Species 9") +
+  #   scale_x_continuous(name = NULL) +
+  #   scale_color_gradient(name = "time", low = "black", high = "orange")+
+  #   # facet_grid(.~scenario, scales = "free") +
+  #   theme(legend.title=element_text(),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         # panel.grid.minor = element_line(colour = "grey92"),
+  #         # legend.justification=c(1,1),
+  #         legend.position = "bottom",
+  #         strip.background = element_blank(),
+  #         strip.text.x = element_text(c("no predation","predation")),
+  #         legend.key = element_rect(fill = "white"))+
+  #   ggtitle(NULL)
   
   
   g_legend<-function(a.gplot){
@@ -2029,23 +2130,23 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, plotN
     legend <- tmp$grobs[[leg]]
     return(legend)}
   
-  mylegend<-g_legend(p1)
+  mylegend<-g_legend(plotList[[1]])
   
-  p10 <- grid.arrange(arrangeGrob(p1 + theme(legend.position="none"),
-                                  p2 + theme(legend.position="none"),
-                                  p3 + theme(legend.position="none"),
-                                  p4 + theme(legend.position="none"),
-                                  p5 + theme(legend.position="none"),
-                                  p6 + theme(legend.position="none"),
-                                  p7 + theme(legend.position="none"),
-                                  p8 + theme(legend.position="none"),
-                                  p9 + theme(legend.position="none"),
+  p10 <- grid.arrange(arrangeGrob(plotList[[1]] + theme(legend.position="none"),
+                                  plotList[[2]] + theme(legend.position="none"),
+                                  plotList[[3]] + theme(legend.position="none"),
+                                  plotList[[4]] + theme(legend.position="none"),
+                                  plotList[[5]] + theme(legend.position="none"),
+                                  plotList[[6]] + theme(legend.position="none"),
+                                  plotList[[7]] + theme(legend.position="none"),
+                                  plotList[[8]] + theme(legend.position="none"),
+                                  plotList[[9]] + theme(legend.position="none"),
                                   nrow=3),
                       mylegend, nrow=2,heights=c(9.5,.5),
                       left=textGrob("Fitness", rot = 90, vjust = 1))
   
   
-  if(save_it) ggsave(p10,filename = plotName,device = "png",width = 15,height = 30,units = "cm")
+  if(save_it) ggsave(p10,filename = plotName,device = "png",width = 21,height = 21,units = "cm")
   
   if(returnData) return(plotDat) else if(print_it) return(p10)
   
@@ -2061,11 +2162,11 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
               min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
   
   
-  intakeScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref , t_d = object@params@t_d, 
+  intakeScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref, t_d =  object@params@species_params$t_d[iSpecies], 
                           Ea = object@params@species_params$ea_int[iSpecies], c_a = object@params@species_params$ca_int[iSpecies], 
                           Ed = object@params@species_params$ed_int[iSpecies], c_d = object@params@species_params$cd_int[iSpecies])
   
-  metabScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref , t_d = object@params@t_d, 
+  metabScalar <- tempFun(w = object@params@w, temperature = temperature, t_ref = object@params@t_ref , t_d = object@params@species_params$t_d[iSpecies], 
                          Ea = object@params@species_params$ea_met[iSpecies], c_a = object@params@species_params$ca_met[iSpecies], 
                          Ed = object@params@species_params$ed_met[iSpecies], c_d = object@params@species_params$cd_met[iSpecies])
   # temperatureScalar has size in rows and temperature in cols
@@ -2096,14 +2197,15 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
   myData <- data.frame("temperature" = temperature, "intake" = intakeScalar[size,], "metabolism" = metabScalar[size,], "netEnergy" = netE_dat)
   
   # myData <- data.frame("temperature" = temperature-273, "scalar" = temperatureScalar[20,])
-  
+  t_ref <- object@params@species_params$t_d[iSpecies] - (5 + 0.4*object@params@species_params$t_d[iSpecies] )
+
   p1 <- ggplot(myData)+
     geom_line(aes(x = temperature, y = intake), color = "blue")+
     geom_line(aes(x = temperature, y = metabolism), color = "red")+
-    geom_vline(xintercept = object@params@t_ref, linetype = "dashed", alpha = 0.5) +
-    annotate("text", x = object@params@t_ref, y = 0.1, label = "t_ref") + 
-    geom_vline(xintercept = object@params@t_d, linetype = "dashed", alpha = 0.5,color = "red") +
-    annotate("text", x = object@params@t_d, y = 0.1, label = "t_d") + 
+    geom_vline(xintercept = t_ref, linetype = "dashed", alpha = 0.5) +
+    annotate("text", x = t_ref, y = 0.1, label = "t_ref") + 
+    geom_vline(xintercept = object@params@species_params$t_d[iSpecies], linetype = "dashed", alpha = 0.5,color = "red") +
+    annotate("text", x = object@params@species_params$t_d[iSpecies], y = 0.1, label = "t_d") + 
     geom_hline(yintercept = 0, alpha = 0.5) +
     geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
     scale_y_continuous(name = "scalar", limits = ylim)+
@@ -2116,10 +2218,74 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
   
   if(netEnergy) p <- p + geom_line(aes(x = temperature, y = netEnergy), color = "green")
   
-  if(save_it) ggsave(p1, file = plotName)
+  if(save_it) ggsave(p1, file = plotName, scale = 1.5)
   
   if(returnData) return(myData) else if(print_it) return(p1)
   
+}
+
+plotTemperaturePhen <- function(object, temperature = seq(1,30), iSpecies = 1, ylim = c(NA,NA), size = NULL,
+                                save_it = F, print_it = T, returnData = F, 
+                                plotName = "thermotolerancePhen.png", plotTitle = "thermotolerance")
+{
+  
+  phenParams <- object@params@species_params[which(sim@params@species_params$species == iSpecies),]
+  
+  
+  
+  metTempScalar <- matrix(NA, nrow = dim(phenParams)[1], ncol = length(temperature), dimnames = list(phenParams$ea_met,temperature)) 
+  intTempScalar <- matrix(NA, nrow = dim(phenParams)[1], ncol = length(temperature), dimnames = list(phenParams$ed_int,temperature)) 
+  
+  if(is.null(size)) size <- # size slot closer to maturation size
+    which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
+            min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
+  
+  for(iPhen in 1:dim(phenParams)[1]) # fill the scalars arrays
+  {
+    
+    
+    
+    intTempScalar[iPhen,] <- tempFun(w = size, temperature = temperature, t_ref = object@params@t_ref , t_d = phenParams$t_d[iPhen], 
+                                     Ea = phenParams$ea_int[iPhen], c_a = phenParams$ca_int[iPhen], 
+                                     Ed = phenParams$ed_int[iPhen], c_d = phenParams$cd_int[iPhen])
+    
+    metTempScalar[iPhen,] <- tempFun(w = size, temperature = temperature, t_ref = object@params@t_ref , t_d = phenParams$t_d[iPhen], 
+                                     Ea = phenParams$ea_met[iPhen], c_a = phenParams$ca_met[iPhen], 
+                                     Ed = phenParams$ed_met[iPhen], c_d = phenParams$cd_met[iPhen])
+    # temperatureScalar has size in rows and temperature in cols
+  }
+  
+  plotDat <- melt(intTempScalar)
+  colnames(plotDat) <- c("phenotypes","temperature","intake")
+  tempDat <- melt(metTempScalar)
+  plotDat$metabolism <- tempDat$value
+  
+  
+  
+  p1 <- ggplot(plotDat)+
+    geom_line(aes(x = temperature, y = intake, group = phenotypes, color = phenotypes)) +
+    # geom_line(aes(x = temperature, y = metabolism), color = "red")+
+    geom_vline(xintercept = object@params@t_ref, linetype = "dashed", alpha = 0.5) +
+    annotate("text", x = object@params@t_ref, y = 0.1, label = "t_ref") +
+    geom_vline(xintercept = object@params@species_params$t_d[iSpecies], linetype = "dashed", alpha = 0.5,color = "red") +
+    annotate("text", x = object@params@species_params$t_d[iSpecies], y = 0.1, label = "t_d") +
+    geom_vline(xintercept = mean(object@temperature), linetype = "dashed", alpha = 0.5) +
+    annotate("text", x = mean(object@temperature), y = 0.3, label = "temperate avg") +
+    geom_hline(yintercept = 0, alpha = 0.5) +
+    labs(color='ed_int') +
+    # geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+    scale_y_continuous(name = "scalar", limits = ylim)+
+    theme(legend.title= element_text(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(plotTitle)
+  
+  
+  if(save_it) ggsave(p1, file = plotName, scale = 1.5)
+  
+  if(returnData) return(plotDat) else if(print_it) return(p1)
 }
 
 plotPlankton <- function(object,
@@ -2177,8 +2343,8 @@ plotPlankton <- function(object,
   
 }
 
-plotNetEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F,
-                          nameSave = "netEnergy.png",...){
+plotNetEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, ylim = c(NA,NA),
+                          print_it = T, returnData = F, save_it = F, nameSave = "netEnergy.png",...){
   
   time_elements <- get_time_elements(object,time_range)
   energy_time <- aaply(which(time_elements), 1, function(x){
@@ -2216,7 +2382,7 @@ plotNetEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)
   p <- ggplot(plot_dat) + 
     geom_line(aes(x=w, y = value, colour = Species)) + 
     scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
-    scale_y_continuous(name = "net energy value", trans ="log10")+
+    scale_y_continuous(name = "net energy value", trans ="log10", limits = ylim)+
     theme(legend.title=element_blank(),
           legend.justification=c(1,1),
           legend.key = element_rect(fill = "white"),
@@ -2224,7 +2390,693 @@ plotNetEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if(save_it) ggsave(plot = p, filename = nameSave)
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_dat) else if(print_it) return(p)
+}
+
+plotAvailableEnergy <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, ylim = c(NA,NA),
+                                print_it = T, returnData = F, save_it = F,
+                                nameSave = "AvailableEnergy.png",...){
+  
+  time_elements <- get_time_elements(object,time_range)
+  prey <- aaply(which(time_elements), 1, function(x){
+    # Necessary as we only want single time step but may only have 1 species which makes using drop impossible
+    
+    n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+    dimnames(n) <- dimnames(object@n)[2:3]
+    res <- getAvailPrey(object@params, n=n)
+    return(res)})
+  
+  background <- aaply(which(time_elements), 1, function(x){
+    # Necessary as we only want single time step but may only have 1 species which makes using drop impossible
+    
+    n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+    dimnames(n) <- dimnames(object@n)[2:3]
+    res <- getAvailBackground(object@params, n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,])
+    return(res)})
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    ## take care of prey
+    dimnames(prey)$sp = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    prey_sp = matrix(data = NA, ncol = dim(prey)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(prey)$w)) # prepare the new object
+    names(dimnames(prey_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = prey # save to manip
+      temp[which(rownames(prey) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(prey)==i)) # do the mean (in 2 steps)
+      prey_sp[which(rownames(prey_sp)==i), ] = temp
+    }
+    prey = prey_sp
+    
+    # take care of background
+    dimnames(background)$sp = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    background_sp = matrix(data = NA, ncol = dim(background)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(background)$w)) # prepare the new object
+    names(dimnames(background_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = background # save to manip
+      temp[which(rownames(background) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(background)==i)) # do the mean (in 2 steps)
+      background_sp[which(rownames(background_sp)==i), ] = temp
+    }
+    background = background_sp
+  }
+  
+  name = paste("Available energy at time",time_range,sep=" ")
+  plot_dat <- data.frame(prey = c(prey), background = c(background), species = dimnames(prey)[[1]], w = rep(object@params@w, each=length(dimnames(prey)[[1]])))
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=w, y = prey, colour = "prey")) +
+    geom_line(aes(x=w, y = background, colour = "background")) +
+    geom_line(aes(x=w, y = (prey + background), colour = "sum")) +
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
+    scale_y_continuous(name = "instantaneous value", trans ="log10", limits = ylim)+
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave,scale = 1.5)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
+}
+
+
+ratioReproduction <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), RDI = F){
+  
+  time_range = max(as.numeric(dimnames(object@n)$time))
+  SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+  time_elements <- get_time_elements(object,time_range)
+  x <- which(time_elements)
+  
+  rdi <- getRDI(object@params, n=object@n[x,,], n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,], 
+                intakeScalar = object@intTempScalar[,,x], metScalar = object@metTempScalar[,,x])
+  
+  rdd <- getRDD(object@params, n=object@n[x,,], n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,], 
+                intakeScalar = object@intTempScalar[,,x], metScalar = object@metTempScalar[,,x])
+  
+  
+  if(length(object@params@species_params$ecotype) > length(SpIdx))
+  {
+    
+    names(rdi) <- object@params@species_params$species
+    rdiSpecies = NULL
+    for (iSpecies in SpIdx)
+    {
+      temp = rdi # save to manip
+      temp[which(names(rdi) != iSpecies)] = 0 # keep the ecotypes from the species only
+      temp = sum(temp)
+      rdiSpecies <- cbind(rdiSpecies,temp)
+    }
+    rdi <- rdiSpecies
+    colnames(rdi) <- SpIdx
+    
+    rddSpecies = NULL
+    for (iSpecies in SpIdx)
+    {
+      temp = rdd # save to manip
+      temp[which(names(rdd) != iSpecies)] = 0 # keep the ecotypes from the species only
+      temp = sum(temp)
+      rddSpecies <- cbind(rddSpecies,temp)
+    }
+    rdd <- rddSpecies
+    colnames(rdd) <- SpIdx
+    
+  }
+  
+  ratio <- rdd/rdi
+  
+  
+  if(RDI) return(rdi) else return(ratio)
+  
+}
+
+plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, size = NULL, ylim = c(NA,NA),
+                                   f0 = object@params@f0,  t_d = NULL, ed_int = NULL, ea_int = NULL, t_ref = NULL,
+                                   save_it = F, print_it = T, returnData = F)
+{
+  
+  if(is.null(size)) size <- # size slot closer to maturation size
+      which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
+              min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
+  
+  if(is.null(t_d)) t_d <- object@params@species_params$t_d[iSpecies]
+  if(is.null(ed_int)) ed_int <- object@params@species_params$ed_int[iSpecies]
+  if(is.null(ea_int)) ea_int <- object@params@species_params$ea_int[iSpecies]
+  if(is.null(t_ref)) t_ref <- object@params@t_ref
+  
+  intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
+                          Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
+                          Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
+  
+  metabScalar <- tempFun(w = size, temperature = temperature, t_ref = object@params@t_ref , t_d = t_d,
+                         Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
+                         Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
+  
+  
+  
+  a <- object@params@intake_max[iSpecies,size] * intakeScalar
+  e <- object@params@f0 * a * object@params@species_params$alpha[iSpecies]
+  b <- object@params@metab[iSpecies,size] * metabScalar       
+  e <- e - b
+  
+  myData <- data.frame("temperature" = temperature, "energy" = t(e))
+  
+  p <- ggplot(myData)+
+    geom_line(aes(x = temperature, y = energy))+
+    geom_vline(xintercept = t_ref, linetype = "dashed", alpha = 0.5) +
+    annotate("text", x = t_ref, y = 0.1, label = "t_ref") +
+    geom_vline(xintercept = t_d, linetype = "dashed", alpha = 0.5,color = "red") +
+    annotate("text", x = t_d, y = 0.1, label = "t_d") +
+    scale_y_continuous(name = "energy", limits = ylim)+
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(NULL)
+  
+  if(returnData) return(myData) else return(p)
+}
+
+plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5, temperature = 1:30, size = NULL, traitValue = NULL,
+                                     td = NULL, ed = NULL, ea = NULL, tref = NULL, save_it = F, print_it = T, returnData = F, 
+                                     plotName = "traitThermoToleranceTemp.png", plotTitle = "trait thermotolerance")
+{
+  # object <- get(load("romainZone/temperate/run2/run.Rdata"))
+  
+  
+  if(is.null(td)) t_d <- object@params@species_params$t_d[iSpecies]
+  if(is.null(ed)) ed_int <- object@params@species_params$ed_int[iSpecies]
+  
+  
+  if(is.null(size))  size <- # size slot closer to maturation size
+    which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
+            min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
+  
+  switch(trait,
+         "ed_int" = {
+           if (is.null(traitValue)) ed_int <- seq(round(min(object@params@species_params$ed_int),1),round(max(object@params@species_params$ed_int),1),by = 0.1)
+           else ed_int <- traitValue
+           netE_dat <- matrix(NA,nrow = length(temperature) ,ncol = length(ed_int),dimnames = list("temperature" = temperature,"trait"= ed_int))
+           
+           for(var in ed_int)
+           {
+             if(is.null(ea)) ea_int <- object@params@species_params$ea_int[iSpecies]
+             else ea_int <- ea(var)
+             
+             if(is.null(tref)) t_ref <- object@params@t_ref
+             else t_ref <- tref(t_d)
+
+             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
+                                     Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
+                                     Ed = var, c_d = object@params@species_params$cd_int[iSpecies])
+             
+             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
+                                    Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
+                                    Ed = var, c_d = object@params@species_params$cd_met[iSpecies])
+             
+             
+             
+             a <- object@params@intake_max[iSpecies,size] * intakeScalar
+             e <- object@params@f0 * a * object@params@species_params$alpha[iSpecies]
+             b <- object@params@metab[iSpecies,size] * metabScalar       
+             e <- e - b
+             
+             netE_dat[,which(colnames(netE_dat) == var)] <- e
+             
+           }
+         },
+         "t_d" = {
+           if (is.null(traitValue)) t_d <- seq(round(min(object@params@species_params$t_d),1),round(max(object@params@species_params$t_d),1),by = 0.2) 
+           else t_d <- traitValue
+           
+           netE_dat <- matrix(NA,nrow = length(temperature) ,ncol = length(t_d),dimnames = list("temperature" = temperature,"trait"= t_d))
+           
+           for(var in t_d)
+           {
+             if(is.null(ea)) ea_int <- object@params@species_params$ea_int[iSpecies]
+             else ea_int <- ea(ed_int)
+             
+             if(is.null(tref)) t_ref <- object@params@t_ref
+             else t_ref <- tref(var)
+             
+             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = var , 
+                                     Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
+                                     Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
+             
+             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = var,
+                                    Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
+                                    Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
+             
+             
+             
+             a <- object@params@intake_max[iSpecies,size] * intakeScalar
+             e <- object@params@f0 * a * object@params@species_params$alpha[iSpecies]
+             b <- object@params@metab[iSpecies,size] * metabScalar       
+             e <- e - b
+             
+             netE_dat[,which(colnames(netE_dat) == var)] <- e
+             
+           }
+         },
+         {print("Trait specified is not in the list")}
+  )
+  
+  
+  plot_dat <- melt(netE_dat)
+  
+  p <- ggplot(plot_dat)+
+    geom_line(aes(x = temperature, y = value, group = trait, color = trait)) +
+    # geom_vline(xintercept = object@params@t_ref, linetype = "dashed", alpha = 0.5) +
+    # annotate("text", x = object@params@t_ref, y = 0.1, label = "t_ref") +
+    # geom_vline(xintercept = t_d, linetype = "dashed", alpha = 0.5) +
+    # annotate("text", x = t_d, y = 0.1, label = "t_d") +
+    scale_y_continuous(name = "net energy", limits = ylim)+
+    theme(#legend.title=element_blank(),
+      legend.justification=c(1,1),
+      legend.key = element_rect(fill = "white"),
+      panel.background = element_rect(fill = "white", color = "black"),
+      panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(plotTitle)
+
+  if(save_it) ggsave(p, file = plotName, scale = 1.5)
+  
+  if(returnData) return(plot_dat) else if(print_it) return(p)
+}
+
+plotNoPhen <- function(object, comments = T, print_it = T, returnData = F, SpIdx = NULL, dt = 0.1)
+{
+timeMax <- object@params@species_params$timeMax[1]
+SpIdx <- 1:9
+exit_df <- data.frame()
+
+
+        SumPar = data.frame(object@params@species_params$species,object@params@species_params$pop,object@params@species_params$extinct)
+
+        colnames(SumPar) = c("species","pop","exit")
+        
+        SumPar$pop[which(SumPar$pop == 0)] = 1 # initial species pop at 1, not 0
+        
+        for (i in 1:dim(SumPar)[1]) if (SumPar$exit[i] == 0) SumPar$exit[i] = timeMax # the not extinct ones get the end sim as extinction value
+        
+        DemList <- list()
+        
+        for (x in SpIdx) # for every species
+        {
+          exit <- NA
+          DemCount = matrix(data = 0, nrow = (timeMax*dt), ncol =2) # create a matrix that count pop and extinction for each time step *dt
+          DemCount[1,1] = 1 # fill the first row
+          SpSumPar <- SumPar[which(SumPar$species == x),] # select the right species df
+          
+          if(dim(SpSumPar)[1] != 1) # if more than one phenotype
+          {
+            for (j in 2:dim(SpSumPar)[1]) # along the df
+              DemCount[ceiling(SpSumPar$pop[j]*dt),1] = DemCount[ceiling(SpSumPar$pop[j-1]*dt),1] + 1 # total number of phenotypes at that time
+            for (j in 1:dim(SpSumPar)[1]) # along the df 
+              if (SpSumPar$exit[j] != timeMax) # do not take into account extinction at the last step (because its not)
+                DemCount[ceiling(SpSumPar$exit[j]*dt),2] = DemCount[ceiling(SpSumPar$exit[j]*dt),2] -1 # an extinction happened at that time
+          } else { DemCount[ceiling(SpSumPar$exit[1]*dt),2] = DemCount[ceiling(SpSumPar$exit[1]*dt),2] -1 } # if only one phenotype in sp
+          
+          # I have a matrix with holes, need to fill them
+          ExCount = 0 
+          for (i in 2:dim(DemCount)[1])
+          {
+            if (DemCount[i,1] == 0) DemCount[i,1] = DemCount[i-1,1]
+            if (DemCount[i,2] != 0)
+            {
+              DemCount[i,2] = ExCount + abs(DemCount[i,2])
+              ExCount = abs(DemCount[i,2]) } else  {
+                DemCount[i,2] =  ExCount 
+              }
+          }
+          
+          pop <- DemCount[,1] - DemCount[,2] # pop - extinction
+          DemCount <- as.data.frame(pop) # keep the alive number of phen
+          colnames(DemCount) <- c("pop")
+          DemCount$time <- as.numeric(rownames(DemCount))
+          DemCount$species <- x
+          DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
+          if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
+          DemList[[x]] <- DemCount
+          
+          if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
+          
+        }
+myData <- do.call(rbind,lapply(DemList,function(x)x))
+  # do an average across simulation
+  # plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean, na.rm = T),
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$pop)),1,mean, na.rm = T))
+  # colnames(plot_dat) <- c("time","species","popN","popF")                      
+
+  # PLOTTING TIME
+# SpIdx <- 1:9
+colfunc <- colorRampPalette(c("firebrick3","darkturquoise", "orange"))
+colGrad <- colfunc(length(SpIdx))
+names(colGrad) <- SpIdx
+
+p <- ggplot(myData) +
+  stat_smooth(aes(x = time, y = pop, color = as.factor(species)), method = "loess", span = 0.15, se = F, size = 0.5)+
+  #geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+  scale_x_continuous(name = "Time (yr)") +
+  scale_y_continuous(name = "Number of phenotypes", limits = c(0,NA))+
+  scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+  theme(legend.title=element_blank(),
+        # legend.position=c(0.5,0.95),
+        legend.justification=c(1,1),
+        legend.box = "horizontal",
+        legend.key = element_rect(fill = "white"),
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.grid.minor = element_line(colour = "grey92"))+
+  # guides(color=guide_legend(override.aes=list(fill=NA), order =1),
+  # linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
+  ggtitle("Variation of phenotype's number throughout the simulation")
+
+  # colfunc <- colorRampPalette(c("firebrick3","darkturquoise", "orange"))
+  # colGrad <- colfunc(length(SpIdx))
+  # names(colGrad) <- SpIdx
+  
+  # p <- ggplot(myData) +
+  #   stat_smooth(aes(x = time, y = pop, color = as.factor(species)), method = "loess", span = 0.15, se = F, size = 0.5)+
+  #   #geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+  #   scale_x_continuous(name = "Time (yr)") +
+  #   scale_y_continuous(name = "Number of phenotypes")+
+  #   scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+  #   scale_linetype_manual(name = "Fisheries", values = colLine)+
+  #   theme(legend.title=element_blank(),
+  #         # legend.position=c(0.5,0.95),
+  #         legend.justification=c(1,1),
+  #         legend.box = "horizontal",
+  #         legend.key = element_rect(fill = "white"),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         panel.grid.minor = element_line(colour = "grey92"))+
+  #   # guides(color=guide_legend(override.aes=list(fill=NA), order =1),
+  #          # linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
+  #   ggtitle("Variation of phenotype's number throughout the simulation")
+  
+  # if(length(exit_df) !=0)
+  # {
+  #   colnames(exit_df) <- c("species","extinction")
+  #   p <- ggplot(plot_dat) +
+  #     stat_smooth(aes(x = time, y = popN, color = as.factor(species), linetype = "un-fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+  #     stat_smooth(aes(x = time, y = popF,color = as.factor(species), linetype = "fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+  #     geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+  #     geom_vline(xintercept = 4000, linetype = "dashed") +
+  #     scale_x_continuous(name = "Time (yr)") +
+  #     scale_y_continuous(name = "Number of phenotypes")+
+  #     scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+  #     scale_linetype_manual(name = "Fisheries", values = colLine)+
+  #     theme(legend.title=element_blank(),
+  #           legend.position=c(0.5,0.95),
+  #           legend.justification=c(1,1),
+  #           legend.box = "horizontal",
+  #           legend.key = element_rect(fill = "white"),
+  #           panel.background = element_rect(fill = "white", color = "black"),
+  #           panel.grid.minor = element_line(colour = "grey92"))+
+  #     guides(color=guide_legend(override.aes=list(fill=NA), order =1),
+  #            linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
+  #     ggtitle("Variation of phenotype's number throughout the simulation")
+  #   
+  # }
+  
+  
+  # color gradient
+  # colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
+  # colGrad <- colfunc(length(SpIdx))
+  # names(colGrad) <- SpIdx
+  # if (length(SpIdx) == 9) colLine <- c("solid","dashed","solid","dashed","solid","longdash","solid","longdash","solid") else colLine = rep("solid",3) # 3,6 and 8 are dashed
+  # 
+  # 
+  # 
+  # p <- ggplot(plot_dat) +
+  #   geom_line(aes(x = time, y = popN-exitN, color = as.factor(species)))+
+  #   geom_line(aes(x = time, y = popF-exitF,color = as.factor(species)), linetype = "dashed")+
+  #   scale_x_continuous(name = "Time (yr)") +
+  #   scale_y_continuous(name = "Number of phenotypes")+
+  #   scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+  #   theme(legend.title=element_blank(),
+  #         legend.position=c(0.19,0.95),
+  #         legend.justification=c(1,1),
+  #         legend.key = element_rect(fill = "white"),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         panel.grid.minor = element_line(colour = "grey92"))+
+  #   guides(color=guide_legend(override.aes=list(fill=NA)))+
+  #   ggtitle("Variation of phenotype's number throughout the simulation")
+  
+  if(returnData) return(myData) else return(p)
+  
+}
+
+plotTrait <- function(object, phenotype = F, SpIdx = NULL, dt = 0.1, Normalisation = F, returnData = T)
+{
+  # Beware this is gonna be hard
+  
+  # Initialisation // bunch of set I need to set up now
+  if (is.null(SpIdx)) SpIdx <- 1:9 # species index
+ 
+   Wmat <- object@params@species_params$w_mat[SpIdx] # maturation size to only select mature phenotypes
+  
+  # if (save_it & is.null(dir))  # if want to save but not specified where
+  #   dir = paste(getwd(),"/temporary",sep = "")
+  # 
+  # ifelse(!dir.exists(file.path(dir)), dir.create(file.path(dir)), FALSE) #create the file if it does not exists
+  
+  
+  # Set-up the data right, we need the right apparition, extinction, traits, ...
+  SumPar = object@params@species_params #shortcut
+  TT = cbind(SumPar$species,as.numeric(SumPar$ecotype),dt*SumPar$pop,dt*SumPar$extinct,SumPar$t_d,SumPar$ed_int) # weird things happen without the as.numeric / *0.1 because dt / need to update this to have the traits as arguments
+  colnames(TT) = c("Species","Phenotype","Apparition","Extinction","Td","EdInt")
+  rownames(TT) = rownames(SumPar)
+  TT = TT[order(TT[,1],decreasing=FALSE),]
+  TT = as.data.frame(TT) # I use TT later in the graphs (its like an artefact)
+  
+  TimeMax <- SumPar$timeMax[1] * dt
+  for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = TimeMax # Fill the extinction value for the non-extinct species
+  
+  # Weighted mean of trait value
+  # 1) matrix of summed abundance of mature individuals at each time step
+  biomass = object@n
+  # put 0 in object@n when w < w_mat
+  for (iTime in 1:dim(biomass)[1]) # for each time step
+  {
+    for (iPhen in 1:dim(biomass)[2]) # for each ecotypes
+    {
+      w_lim = SumPar$w_mat[iPhen] # get the maturation size of the ecotype
+      S <- numeric(length(object@params@w))
+      S[sapply(w_lim, function(x) which.min(abs(x - object@params@w)))] <- 1 # find what w bin is the closest of the maturation size
+      NoW_mat = which(S == 1) # what is the col number of that size bin
+      biomass[iTime,iPhen,1:NoW_mat-1] <-0 # everything under this value become 0
+    }
+  }
+  
+  abundanceM = apply(biomass, c(1,2),sum) # sum the abundance left 
+  
+  # 2) normalisation per species 
+  colnames(abundanceM) = SumPar$species # phenotypes from same species have the same name
+  abundanceNormal = matrix(0,nrow = dim(abundanceM)[1], ncol = dim(abundanceM)[2])
+  
+  # I am getting rid of the species which went instinct at the begining and that went extinct without having mutants (no trait variation)
+  # SpIdx = NULL
+  # for (i in unique(SumPar$species))
+  #   if (sum(abundanceM[,i]) != 0 & dim(SumPar[SumPar$species == i,])[1] != 1) # if not extinct at the beginning and more than one ecotype (for the apply)
+  #     SpIdx = c(SpIdx,i)
+  
+  # SpIdx is annoying:
+  # if (length(SpIdx) > length(unique(SumPar$species))) SpIdx = unique(SumPar$species) # ok so I might have species not even reaching this point so I'm short cutting spidx automatcaly
+  
+  for (iSpecies in SpIdx)
+  {
+    abundanceSp = abundanceM # save to manipulate
+    abundanceSp[,which(colnames(abundanceM) != iSpecies)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
+    abundanceSp = sweep(abundanceSp,1,apply(abundanceSp,1,sum),"/") # normalise
+    abundanceSp[is.nan(abundanceSp)] <-0 # when I divide by 0 I get nan
+    abundanceNormal = abundanceNormal + abundanceSp # I just need to add them up to get the final matrix
+  }
+  # if (comments) cat(sprintf("Abundance normalised\n"))
+  
+  # Now I have normalised abundance, I need to apply the trait I want to plot on them
+  plotTdStore <- list()
+  plotEdStore <- list()
+  
+  datTdStore <- list()
+  datEdStore <- list()
+  
+  # TD
+  
+  abundanceT = sweep(abundanceNormal,2,SumPar$t_d,"*") # I use the normalised abundance and multiply by the trait value
+  
+  # Calculate mean at each time step
+  TotMean = matrix(0, nrow = dim(abundanceT)[1], ncol = max(as.numeric((unique(SumPar$species)))), 
+                   dimnames = list(rownames(abundanceT),as.character(seq(1,max(as.numeric(unique(SumPar$species))))))) #sort(unique(SumPar$species))[length(unique(SumPar$species))]
+  names(dimnames(TotMean)) = list("time","species")
+  
+  for (i in SpIdx)
+  {
+    AMean = abundanceT[,which(colnames(abundanceT) == i)] # get the portion of the matrix I want (right species)
+    if (is.null(dim(AMean)) ==F) AMean = apply(AMean,1,sum) # it is already weighted so I'm just summing to get the mean # if only one sp no need to do it
+    TotMean[,i] = AMean
+  }
+  
+  # Calculate variance and standard deviation
+  # it is the sum of the difference between value and mean squared and multiplied by the weight
+  
+  statTD = list() # list with the stats of all species as I need to do this for each species separatly
+  
+  for (i in SpIdx)
+  {
+    meanSp = TotMean[,i] # take the mean of the species
+    traitSp = SumPar$w_mat[SumPar$species == i] # take the traits of the ecotypes in the species
+    weightSp = abundanceNormal[,which(colnames(abundanceNormal) == i)] # take the proportion of each ecotypes
+    stat = matrix(cbind(as.numeric(rownames(abundanceT)),meanSp,0,0), ncol = 5,nrow = length(meanSp), dimnames = list(NULL,c("time","mean","sd","percentMean","percentSd"))) # initialise the matrix
+    for (j in 1:length(meanSp)) # for each time step
+    {
+      if (is.null(dim(weightSp))) {variance = sum(((traitSp-meanSp[j])^2)*weightSp[j])} else {variance = sum(((traitSp-meanSp[j])^2)*weightSp[j,])} # calculate the variance, condition if only one phen
+      stat[j,3] = sqrt(variance) # calculate the standard deviation
+      stat[j,4] = (meanSp[j] - SumPar$t_d[1])/SumPar$t_d[1] # normalisation of mean
+      stat[j,5] = stat[j,3]/SumPar$t_d[1] # normalised sd
+    }
+    statTD[[i]] = as.data.frame(stat) # put in the list
+  }
+  
+  # I have the stats for every species, just need to plot now
+  
+  
+  for (i in SpIdx)
+  {
+    stat = statTD[[i]] # take the stats of the right species
+    
+    phenotype = TT[TT$Species == i,c("Apparition","Extinction","Td")] # recup the traits time values
+    Phen = melt(phenotype,"Td") # make the dataframe
+    #name = paste("Maturation size of species ",i, sep = "")
+    
+    #short cut the data frame when species does not reach end of simulation
+    if (sum(which(Phen$value == TimeMax)) == 0) # if there is at least one value equal to the end of the sim it means that the species survived until then
+      stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
+    
+    name = paste("Species",i, sep = " ")
+    
+    # prepare the data for the ribbon
+    g1 <- ggplot(stat)+
+      geom_smooth(aes(x = time, y = percentMean-percentSd)) +
+      geom_smooth(aes(x= time, y = percentMean+percentSd)) 
+    
+    gg1 <- ggplot_build(g1)
+    dfRibbon <- data.frame(x = gg1$data[[1]]$x, ymin = gg1$data[[1]]$y, ymax = gg1$data[[2]]$y) #and extract the smooth data for the ribbon
+    
+    if (!Normalisation) stat$percentMean = stat$mean
+    
+    
+    p = ggplot() +
+      geom_smooth(data = stat, aes(x = time, y = percentMean)) +
+      # geom_ribbon(data = dfRibbon, aes(x = x, ymin = ymin, ymax = ymax), fill = "grey", alpha = 0.4)+
+      # geom_hline(yintercept = 0, linetype = "dashed") +
+      theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
+            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
+      scale_x_continuous(name = "Time", limits  = c(0,TimeMax)) +
+      scale_y_continuous(name = name, limits = c(NA,NA)) + #, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
+      ggtitle("Evolution of Td")
+    
+    
+    
+    plotTdStore[[i]] = p
+    datTdStore[[i]] <- stat
+    
+  }
+  
+  
+  abundanceT = sweep(abundanceNormal,2,SumPar$ed_int,"*") # I use the normalised abundance and multiply by the trait value
+  
+  # Calculate mean at each time step
+  TotMean = matrix(0, nrow = dim(abundanceT)[1], ncol = max(as.numeric((unique(SumPar$species)))), 
+                   dimnames = list(rownames(abundanceT),as.character(seq(1,max(as.numeric(unique(SumPar$species))))))) #sort(unique(SumPar$species))[length(unique(SumPar$species))]
+  names(dimnames(TotMean)) = list("time","species")
+  
+  for (i in SpIdx)
+  {
+    AMean = abundanceT[,which(colnames(abundanceT) == i)] # get the portion of the matrix I want (right species)
+    if (is.null(dim(AMean)) ==F) AMean = apply(AMean,1,sum) # it is already weighted so I'm just summing to get the mean # if only one sp no need to do it
+    TotMean[,i] = AMean
+  }
+  
+  # Calculate variance and standard deviation
+  # it is the sum of the difference between value and mean squared and multiplied by the weight
+  
+  statTD = list() # list with the stats of all species as I need to do this for each species separatly
+  
+  for (i in SpIdx)
+  {
+    meanSp = TotMean[,i] # take the mean of the species
+    traitSp = SumPar$w_mat[SumPar$species == i] # take the traits of the ecotypes in the species
+    weightSp = abundanceNormal[,which(colnames(abundanceNormal) == i)] # take the proportion of each ecotypes
+    stat = matrix(cbind(as.numeric(rownames(abundanceT)),meanSp,0,0), ncol = 5,nrow = length(meanSp), dimnames = list(NULL,c("time","mean","sd","percentMean","percentSd"))) # initialise the matrix
+    for (j in 1:length(meanSp)) # for each time step
+    {
+      if (is.null(dim(weightSp))) {variance = sum(((traitSp-meanSp[j])^2)*weightSp[j])} else {variance = sum(((traitSp-meanSp[j])^2)*weightSp[j,])} # calculate the variance, condition if only one phen
+      stat[j,3] = sqrt(variance) # calculate the standard deviation
+      stat[j,4] = (meanSp[j] - SumPar$ed_int[1])/SumPar$ed_int[1] # normalisation of mean
+      stat[j,5] = stat[j,3]/SumPar$ed_int[1] # normalised sd
+    }
+    statTD[[i]] = as.data.frame(stat) # put in the list
+  }
+  
+  # I have the stats for every species, just need to plot now
+  
+  
+  for (i in SpIdx)
+  {
+    stat = statTD[[i]] # take the stats of the right species
+    
+    phenotype = TT[TT$Species == i,c("Apparition","Extinction","EdInt")] # recup the traits time values
+    Phen = melt(phenotype,"EdInt") # make the dataframe
+    #name = paste("Maturation size of species ",i, sep = "")
+    
+    #short cut the data frame when species does not reach end of simulation
+    if (sum(which(Phen$value == TimeMax)) == 0) # if there is at least one value equal to the end of the sim it means that the species survived until then
+      stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
+    
+    name = paste("Species",i, sep = " ")
+    
+    # prepare the data for the ribbon
+    g1 <- ggplot(stat)+
+      geom_smooth(aes(x = time, y = percentMean-percentSd)) +
+      geom_smooth(aes(x= time, y = percentMean+percentSd)) 
+    
+    gg1 <- ggplot_build(g1)
+    dfRibbon <- data.frame(x = gg1$data[[1]]$x, ymin = gg1$data[[1]]$y, ymax = gg1$data[[2]]$y) #and extract the smooth data for the ribbon
+    
+    if (!Normalisation) stat$percentMean = stat$mean
+    
+    
+    p = ggplot() +
+      geom_smooth(data = stat, aes(x = time, y = percentMean)) +
+      # geom_ribbon(data = dfRibbon, aes(x = x, ymin = ymin, ymax = ymax), fill = "grey", alpha = 0.4)+
+      # geom_hline(yintercept = 0, linetype = "dashed") +
+      theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
+            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
+      scale_x_continuous(name = "Time", limits  = c(0,TimeMax)) +
+      scale_y_continuous(name = name, limits = c(NA,NA)) + #, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
+      ggtitle("Evolution of Ed")
+    
+    
+    
+    plotEdStore[[i]] = p
+    datEdStore[[i]] <- stat
+    
+  }
+  
+  return(list(datTdStore,datEdStore))
+  
 }

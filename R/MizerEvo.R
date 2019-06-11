@@ -3,12 +3,12 @@
 # I have to pass all the parameters here to be able to build mutants again
 myModel <- function(no_sp = 9, # number of species #param described in Andersen & Pedersen 2010
                     min_w_inf = 10, # minimum weight of sp
-                    max_w_inf = 1e5, # maximum weight of sp
+                    max_w_inf = 1e4, # maximum weight of sp
                     no_w = 100, # number of size bins community spectrum
                     min_w = 0.001, #min size bin of community spectrum/The smallest size of the species community size spectrum
                     max_w = max_w_inf * 1.1, #max size bin of both spectrum
-                    min_w_pp = 1e-10, #min size bin of background size spectrum
-                    no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
+                    # min_w_pp = 1e-10, #min size bin of background size spectrum
+                    # no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
                     w_pp_cutoff = 1, # cut of size of the background spectrum
                     k0 = 50, # recruitment adjustment parameter
                     n = 0.75, # exponent of maximum intake (scaling of intake)
@@ -24,9 +24,10 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     h = 85, # factor of maximum intake
                     beta = 100, # preferred predator-prey weight ratio
                     sigma = 1, # width of selection function
+                    gamma = NA,
                     f0 = 0.5, # average feeding level of the community/feeding level of small individuals feeding on background
-                    knife_edge_size = 1000, #knife edge position
-                    gear_names = "knife_edge_gear",
+                    knife_edge_size = 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) * eta , #knife edge position
+                    gear_names = rep("FishingStuff", no_sp),
                     t_max = 100,
                     dt = 0.1,
                     mu = 1,
@@ -51,8 +52,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     predMort = NULL, # if want to replace dynamics m2 by constant one
                     initPool = 0,
                     tau = 7, # exponent in psi function
-                    overlap = 0.5, # to tweak  interaction matrix
-                    interaction = matrix(overlap,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the overlap param
+                    interactionOne = 0.5, # to set_up interaction with one parameter
+                    interaction = matrix(interactionOne,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the interactionOne param
                     diet_steps = 10, # for the diet thing
                     # extension
                     kappa_ben = 0.005,
@@ -66,7 +67,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     w_aa_cutoff = 100,
                     t_ref = 10,
                     t_d = 25,
-                    temperature =  rep(t_ref, times = t_max*no_run),
+                    temperature = NA,
                     ea_met = NA,
                     ca_met = NA,
                     ea_int = NA,
@@ -83,11 +84,11 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     cd_mat = NA,
                     ed_mor = NA,
                     cd_mor = NA,
-                    avail_PP = NA,
-                    avail_BB = NA,
-                    avail_AA = NA,
+                    avail_PP = 1,
+                    avail_BB = 0,
+                    avail_AA = 0,
                     ...){
-
+tic()
   if (is.null(initCondition))
   {
     firstRun = 1
@@ -100,7 +101,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                        no_w = no_w, 
                        min_w = min_w, 
                        max_w = max_w,
-                       min_w_pp = min_w_pp, 
+                       # min_w_pp = min_w_pp, 
                        w_pp_cutoff = w_pp_cutoff,
                        k0 = k0, 
                        n = n, 
@@ -115,7 +116,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                        z0pre = z0pre, 
                        h = h, 
                        beta = beta, 
-                       sigma = sigma, 
+                       sigma = sigma,
+                       gamma = gamma,
                        f0 = f0, 
                        knife_edge_size = knife_edge_size,
                        gear_names = gear_names,
@@ -224,7 +226,21 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    # Trait = ed_int
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
                    mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
                  },
+                 t_d = {
+                   # Trait = ed_int
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
+                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
+                 },
+                 temperature = {
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd) # ed_int cannot go lower than 2.5
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
+                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
+                 },
+                 
                  all = {
                    # Trait = asymptotic size
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
@@ -248,6 +264,9 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           rownames(mutant) = mutant$ecotype
           param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
           
+          #updatenameList
+          nameList = param@species_params$ecotype
+          
           #mutant abundance
           n_mutant <- rep(0,no_w)
           n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
@@ -261,13 +280,13 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     }
     #need to update some suff now that there is one more sp
     no_sp = dim(param@species_params)[1]
-    
     # Recreate the "param" object needed for the projection
-    param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
+    if (print_it) cat(sprintf("Creating first MizerParams object.\n"))
+    param <- MizerParams(param@species_params, no_w = no_w,  w_pp_cutoff = w_pp_cutoff, max_w = max_w,
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
-    
+    if (print_it) cat(sprintf("Done\n"))
     # redistribute the abundance of the phenotypes more randomly
     template <- n_init[1:no_sp,]
     for (iSpecies in 1:no_sp) # for every species
@@ -292,8 +311,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
-    param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
+    param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff,  max_w = max_w,
+                         n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     spIndex = as.character(Nparam$ecotype)
@@ -320,6 +339,9 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
   allRun <- list() # save all the runs
   interactionSave <- param@interaction # save the interaction matrix at the begining of the simulation
   
+  # need to check temperature format
+  if (length(temperature) == 1) temperature = rep(temperature, times = t_max*no_run)
+  
   for(j in firstRun:no_run){
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
@@ -327,8 +349,10 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
     
     # Select the right temperature vector for the run/ must be t_max length
     temperature_vec <- temperature[seq((j-1)*t_max+1,j*t_max)]
-    cat(sprintf("temperature for the run:\n"))
-    print(temperature_vec)
+    if (print_it)
+      {cat(sprintf("temperature for the run:\n"))
+    print(temperature_vec)}
+    
     # First run without mutants
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
                    initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
@@ -403,8 +427,22 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                  },
                  ed_int = {
                    # Trait = ed_int
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   sd = as.numeric(mAmplitude *  resident_params["ed_int"])
                    mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd) # ed_int cannot go lower than 2.5
+                 },
+                 t_d = {
+                   # Trait = ed_int
+                   sd = as.numeric(mAmplitude *  resident_params["t_d"])
+                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
+                   cat(sprintf("Its name is %i and its trait value is %g\n", mutant$ecotype,mutant["t_d"]))
+                 },
+                 temperature = {
+                   sd = as.numeric(mAmplitude * resident_params["ed_int"])
+                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd) # ed_int cannot go lower than 2.5
+                   sd = as.numeric(mAmplitude * resident_params["t_d"])
+                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
                  },
                  all = {
                    # Trait = asymptotic size
@@ -426,7 +464,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                    print("congrats, you managed to fuck up somewhere")
                  })
           
-          cat(sprintf("Its name is %i and its trait value is %g\n", mutant$ecotype,mutant["w_mat"]))
+          # cat(sprintf("Its name is %i and its trait value is %g\n", mutant$ecotype,mutant["w_mat"]))
           
           # I need to specify the name myself as the dataframe way is not consistant and subject to errors. It will work as long as a parent has less than 1e5 mutants
           rownames(mutant) = mutant$ecotype
@@ -462,8 +500,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
           }
           
           # Recreate the "param" object needed for the projection
-          trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
+          trait_params <- MizerParams(sim$data@params@species_params,  no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+                                      n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                                       # normalFeeding = normalFeeding, tau = tau, 
                                       interaction = interaction)
           ## TODO ### need to fix this name shenaniggan
@@ -518,7 +556,6 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
         # print("sim specs")
         # print(class(sim))
         # print(summary(sim))
-        
         sim <- project(trait_params, t_max = t_max, dt = dt, prevSim = sim, mu = mu,
                        extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort,
                        print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec)
@@ -555,17 +592,29 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       # but first I need to save it
       allRun[[j]] <- sim
       
-      # then let's clean the sim of the extinct species and initialse next sim
+      # then let's clean the sim of the extinct species and initial next sim
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
-      param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
+      
+      # print(2)
+      # print(param@w_full)
+      # print(param@species_params)
+      # print(Nparam$species)
+      
+      param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+                           n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                            # normalFeeding = normalFeeding, tau = tau,
                            interaction = interaction)
+      # print(3)
+      # print(param@w_full)
+      # print(param@species_param)
       spIndex = as.character(Nparam$ecotype)
       n_init = sim@n[dim(sim@n)[1],spIndex,]
-      n_pp_init = sim@n_pp[dim(sim@n)[1],]
+      n_pp_init = sim@n_pp[dim(sim@n_pp)[1],]
+      n_aa_init = sim@n_aa[dim(sim@n_aa)[1],]
+      n_bb_init = sim@n_bb[dim(sim@n_bb)[1],]
+      
 
   }
   # all runs done
@@ -594,20 +643,20 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
       interactionSave <- matrix(0.5,ncol = dim(SummaryParams)[1], nrow = dim(SummaryParams)[1])
     }
     # Update all the other param from the dataframe
-    FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, 
-                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref, t_d = t_d,
+    FinalParam <- MizerParams(SummaryParams, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+                              n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
     sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it)
     gc()
-    simOpt = superOpt(sim) 
+    sim = superOpt(sim)
     if (save_it)
     {
       if (is.null(path_to_save)) path_to_save = paste(getwd(),"/temporary",sep="")
       ifelse(!dir.exists(file.path(path_to_save)), dir.create(file.path(path_to_save),recursive = T), FALSE) #create the file if it does not exists
-      save(simOpt,file = paste(path_to_save,"/run.Rdata",sep="")) #save it
+      save(sim,file = paste(path_to_save,"/run.Rdata",sep="")) #save it
     }
-    
-    return(simOpt)
+    toc()
+    return(sim)
 }
