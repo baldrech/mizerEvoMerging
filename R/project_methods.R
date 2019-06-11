@@ -138,8 +138,13 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) {
     #f2 <- sweep(prey_all, 2, object@w_full^2, "*")
     # Eq (3.4) is then a convolution integral in terms of f2[w_p] and phi[w_p/w].
 
-    prey <- sweep(sweep(prey, 2, n_pp, "+"), 2, 
-                object@w_full * object@dw_full, "*")
+    # prey <- sweep(sweep(prey, 2, n_pp, "+"), 2, 
+    #             object@w_full * object@dw_full, "*")
+    
+    # Rom
+    prey <- sweep(prey_all, 2, 
+                  object@w_full * object@dw_full, "*")
+    
     # Eq (3.4) is then a convolution integral in terms of prey[w_p] and phi[w_p/w].
 
     # We approximate the integral by the trapezoidal method. Using the
@@ -166,6 +171,76 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) {
 #' @inherit getAvailEnergy
 #' @export
 getPhiPrey <- getAvailEnergy
+
+### Decompose available energy for plots
+getAvailBackground <- function(object, n_pp, n_bb, n_aa) { #}, intakeScalar) { 
+  idx_sp <- (length(object@w_full) - length(object@w) + 1):length(object@w_full)
+  #first get the available plankton spectrum food. For this I convert the availability vector into a one column matrix, so I can use matrix multiplication with n_pp. This will give a matrix of species x size groups in the full spectrum (species and background)
+  pl_food <- matrix(object@species_params$avail_PP, nrow = length(object@species_params$avail_PP), ncol = 1) %*% n_pp
+  #do the same for the benthic spectrum
+  ben_food <- matrix(object@species_params$avail_BB, nrow = length(object@species_params$avail_PP), ncol = 1) %*% n_bb
+  #do the same for the algal spectrum
+  alg_food <- matrix(object@species_params$avail_AA, nrow = length(object@species_params$avail_AA), ncol = 1) %*% n_aa
+  
+  #now we can simply add these matrices because their dimensions should be the same. This is because n_pp, n_bb and n_aa include the full spectrum, but values are zero above the maximum plankton and benthos and algal size     
+  prey_backgr <- pl_food + ben_food + alg_food
+  
+  ## now we should be able to simply add prey matrix (which includes species) and prey_backgr matrix without needing a sweep
+
+  prey <- sweep(prey_backgr, 2, 
+                object@w_full * object@dw_full, "*")
+  
+  # Eq (3.4) is then a convolution integral in terms of prey[w_p] and phi[w_p/w].
+  
+  # We approximate the integral by the trapezoidal method. Using the
+  # convolution theorem we can evaluate the resulting sum via fast fourier
+  # transform.
+  # mvfft() does a Fourier transform of each column of its argument, but
+  # we need the Fourier transforms of each row, so we need to apply mvfft()
+  # to the transposed matrices and then transpose again at the end.
+  avail_energy <- Re(t(mvfft(t(object@ft_pred_kernel_e) * mvfft(t(prey)),
+                             inverse = TRUE))) / length(object@w_full)
+  # Only keep the bit for fish sizes
+  avail_energy <- avail_energy[, idx_sp, drop = FALSE]
+  # Due to numerical errors we might get negative or very small entries that
+  # should be 0
+  avail_energy[avail_energy < 1e-18] <- 0
+  
+  dimnames(avail_energy) <- dimnames(object@metab)
+  return(avail_energy)
+}
+
+
+getAvailPrey <- function(object, n) { #}, intakeScalar) { 
+  
+  idx_sp <- (length(object@w_full) - length(object@w) + 1):length(object@w_full)
+  
+  prey <- matrix(0, nrow = dim(n)[1], ncol = length(object@w_full))
+  
+  prey[, idx_sp] <- object@interaction %*% n
+  
+  prey <- sweep(prey, 2, 
+                object@w_full * object@dw_full, "*")
+  
+  # Eq (3.4) is then a convolution integral in terms of prey[w_p] and phi[w_p/w].
+  
+  # We approximate the integral by the trapezoidal method. Using the
+  # convolution theorem we can evaluate the resulting sum via fast fourier
+  # transform.
+  # mvfft() does a Fourier transform of each column of its argument, but
+  # we need the Fourier transforms of each row, so we need to apply mvfft()
+  # to the transposed matrices and then transpose again at the end.
+  avail_energy <- Re(t(mvfft(t(object@ft_pred_kernel_e) * mvfft(t(prey)),
+                             inverse = TRUE))) / length(object@w_full)
+  # Only keep the bit for fish sizes
+  avail_energy <- avail_energy[, idx_sp, drop = FALSE]
+  # Due to numerical errors we might get negative or very small entries that
+  # should be 0
+  avail_energy[avail_energy < 1e-18] <- 0
+  
+  dimnames(avail_energy) <- dimnames(object@metab)
+  return(avail_energy)
+}
 
 
 #' Get feeding level
@@ -1184,7 +1259,7 @@ getRDI <- function(object, n, n_pp, n_bb, n_aa, intakeScalar, metScalar,
 #' }
 getRDD <- function(object, n, n_pp, n_bb, n_aa, sex_ratio = 0.5, intakeScalar, metScalar,
                    rdi = getRDI(object, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa, sex_ratio = sex_ratio, intakeScalar = intakeScalar, metScalar = metScalar)) {
-    rdd <- object@srr(rdi = rdi, species_params = object@species_params)
+      rdd <- object@srr(rdi = rdi, species_params = object@species_params)
     return(rdd)
 }
 
@@ -1309,22 +1384,23 @@ getDietComp<- function(object, n,  n_pp, n_bb, n_aa, intakeScalar, diet_comp_all
 #                          return(temperatureScalar)
 # }
 
-tempFun <- function(w, temperature, t_ref, t_d = 25, Ea, c_a, Ed = 0, c_d = 0) # default are 0 for now as deactivation is buggy
+tempFun <- function(w, temperature, t_d = 25, t_ref, Ea, c_a, Ed = 0, c_d = 0) # default are 0 for now as deactivation is buggy
 {
   # tempFun returns a matrix with w (size) as columns and temperature as rows
   k = 8.617332e-5 # Boltzmann constant 
   # equation
   # (w^(c_a*(temperature-t_ref)))  *exp((-Ea/8.617332e-5)*((1/temperature) - (1/t_ref)))
   # *(1/(w^(c_d*(temperature-t_d)))*exp((-Ed/8.617332e-5)*((1/temperature) - (1/t_d))))
-  
-  temperature <- temperature + 273 # converting to Kelvin from Celcius
+
+  # converting to Kelvin from Celcius
+  temperature <- temperature + 273 
   t_ref <- t_ref + 273
   t_d <- t_d + 273
-  
-temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *exp((-Ea/k)*((1/temperature) - (1/(t_ref))))) 
 
+  
  
-                         
+  temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *exp((-Ea/k)*((1/temperature) - (1/(t_ref)))))
+
+  
   return(temperatureScalar)
 }
-
