@@ -365,7 +365,7 @@ setClass(
         lambda_alg = "numeric",
         kappa_alg = "numeric",
         t_ref = "numeric",
-        t_d = "numeric",
+        # t_d = "numeric",
         maxIntakeScalar = "array"
     ),
     prototype = prototype(
@@ -381,7 +381,7 @@ setClass(
         f0 = NA_real_,
         kappa = NA_real_,
         t_ref = NA_real_,
-        t_d = NA_real_,
+        # t_d = NA_real_,
         maxIntakeScalar = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
         psi = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
         initial_n = array(NA,dim = c(1,1), dimnames = list(sp = NULL,w = NULL)),
@@ -670,17 +670,16 @@ multispeciesParams <- function(object, interaction,
                     kappa = 1e11, lambda = (2 + q - n), w_pp_cutoff = 10,
                     min_w_bb = 1e-10, kappa_ben = 1e11, lambda_ben = (2 + q - n), w_bb_cutoff = 10, r_bb = 2,
                     min_w_aa = 1e-10, kappa_alg = 1e11, lambda_alg = (2 + q - n), w_aa_cutoff = 100, r_aa = 2,
-                    t_ref = 10, t_d = 25,
+                    t_ref = 10, # t_d = 25,
                     f0 = 0.6, z0pre = 0.6, z0exp = n - 1,
-                    store_kernel = (no_w <= 100)) {
+                    store_kernel = (no_w < 100)) {
     # row.names(object) <- object$species # RF
     row.names(object) <- object$ecotype
 
     no_sp <- nrow(object)
-    
-    if (!is.na(max_w)) {
-        message("Note: The max_w argument will be ignored. The fish spectrum extends to the asymptotic size of the largest species.")
-    }
+    # if (!is.na(max_w)) {
+    #     message("Note: The max_w argument will be ignored. The fish spectrum extends to the asymptotic size of the largest species.")
+    #   }
     
     if (missing(interaction)) {
         interaction <- matrix(1, nrow = no_sp, ncol = no_sp)
@@ -866,24 +865,24 @@ multispeciesParams <- function(object, interaction,
     
     # Sort out activation energy (ea) column for four rates: maturation 
     if (!("ea_mat" %in% colnames(object))) {
-      message("Note: \tNo ea_mat column in species data frame so setting activation energy (ea) for maturation to 0.63")
-      object$ea_mat <- 0.63
+      message("Note: \tNo ea_mat column in species data frame so setting activation energy (ea) for maturation to 0")
+      object$ea_mat <- 0
     }
     missing <- is.na(object$ea_mat)
     if (any(missing)) {
-      message("Note: \tNo value for ea_mat provided so setting activation energy (ea) for maturity to 0.63")
-      object$ea_mat[missing] <- 0.63
+      message("Note: \tNo value for ea_mat provided so setting activation energy (ea) for maturity to 0")
+      object$ea_mat[missing] <- 0
     }   
     
     # Sort out activation energy (ea) column for four rates: mortality 
     if (!("ea_mor" %in% colnames(object))) {
-      message("Note: \tNo ea_mor column in species data frame so setting activation energy (ea) for background mortality to 0.63")
-      object$ea_mor <- 0.63
+      message("Note: \tNo ea_mor column in species data frame so setting activation energy (ea) for background mortality to 0")
+      object$ea_mor <- 0
     }
     missing <- is.na(object$ea_mor)
     if (any(missing)) {
-      message("Note: \tNo value for ea_mor provided so setting activation energy (ea) for mortality to 0.63")
-      object$ea_mor[missing] <- 0.63
+      message("Note: \tNo value for ea_mor provided so setting activation energy (ea) for mortality to 0")
+      object$ea_mor[missing] <- 0
     }  
     
     ####
@@ -1075,7 +1074,7 @@ multispeciesParams <- function(object, interaction,
     # Check essential columns: species (name), wInf, wMat, h, gamma,  ks, beta, sigma 
     check_species_params_dataframe(object)
     
-    max_w <- max(object$w_inf)
+    # max_w <- max(object$w_inf) # RF commented this because it fucks shit up
     
     # If not provided, set min_w_pp so that all fish have their full feeding 
     # kernel inside plankton spectrum
@@ -1091,7 +1090,6 @@ multispeciesParams <- function(object, interaction,
                 toString(hungry_sp)))
         }
     }
-    
     ## Make an empty object of the right dimensions -----------------------------
     res <- emptyParams(no_sp, min_w = min_w, max_w = max_w, no_w = no_w,  
                        min_w_pp = min_w_pp, no_w_pp = NA, 
@@ -1112,9 +1110,8 @@ multispeciesParams <- function(object, interaction,
     res@lambda_alg <- lambda_alg
     res@kappa_alg <- kappa_alg
     res@t_ref <- t_ref
-    res@t_d <- t_d
+    # res@t_d <- t_d
     no_w_full <- length(res@w_full)
-
     # If not w_min column in species_params, set to w_min of community
     if (!("w_min" %in% colnames(object)))
         object$w_min <- min(res@w)
@@ -1142,7 +1139,6 @@ multispeciesParams <- function(object, interaction,
         }
     }
     res@interaction[] <- interaction
-    
     # Now fill up the slots using default formulations:
     # psi - allocation to reproduction - from original Setup() function
     res@psi[] <- 
@@ -1170,7 +1166,6 @@ multispeciesParams <- function(object, interaction,
     res@search_vol[] <- unlist(tapply(res@w,1:length(res@w),function(wx,gamma,q)gamma * wx^q, gamma=object$gamma, q=q))
     res@metab[] <-  unlist(tapply(res@w,1:length(res@w),function(wx,ks,k,p)ks * wx^p + k * wx, ks=object$ks,k=object$k,p=p))
     res@mu_b[] <- res@species_params$z0
-    
     # Set up predation kernels ------------------------------------------------
     if (store_kernel) {
         res@pred_kernel <- array(0,
@@ -1190,10 +1185,10 @@ multispeciesParams <- function(object, interaction,
     # rr is the maximal log predator/prey mass ratio
     rr <- Beta + 3 * sigma
     ri <- floor(rr / dx)
-    
     # might need to add some initialisation here
     res@ft_pred_kernel_e <- matrix(0, nrow = no_sp, ncol = length(x_full))
     for (i in 1:no_sp) {
+      # print(i)
         # We compute the feeding kernel terms and their fft.
         phi <- exp(-(x_full - Beta[i])^2 / (2 * sigma[i]^2))
         phi[x_full > rr[i]] <- 0
@@ -1214,7 +1209,7 @@ multispeciesParams <- function(object, interaction,
         }
         #res@ft_pred_kernel_e[i, ] <- Dx * fft(phi)
     }
-    
+
     # new version calculte ft_pred_kernel_p in the previous loop
     # # ft_pred_kernel_p is an array (no_sp x P (to be determined below)) 
     # # that holds the Fourier transform of the feeding kernel in a form 
@@ -1271,9 +1266,37 @@ multispeciesParams <- function(object, interaction,
     
     # Beverton Holt esque stock-recruitment relationship ----------------------
     # Can add more functional forms or user specifies own
+    # res@srr <- function(rdi, species_params){
+    #     return(rdi / (1 + rdi/species_params$r_max))
+    # }
     
-    res@srr <- function(rdi, species_params){
-        return(rdi / (1 + rdi/species_params$r_max))
+    # RF
+    res@srr <- function(rdi, species_params)
+    {
+      rdiNormal = vector(mode = "numeric", length = length(rdi))
+      names(rdi) <- species_params$species
+      for (iSpecies in sort(unique(species_params$species)))
+      {
+        rdiSp = rdi # save to manip
+        rdiSp[which(names(rdi) != iSpecies)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
+        
+        for (i in 1:length(rdiSp))
+          # in case of NA
+          if (is.na(rdiSp[i]) == TRUE)
+            rdiSp[i] = 1e-30
+        
+        if (sum(rdiSp) != 0)
+          rdiNormal = rdiNormal + rdiSp / sum(rdiSp)
+      }
+      r_maxN = species_params$r_max * rdiNormal
+      
+      for (i in 1:length(r_maxN))
+        # do not want to divide by 0 so replacing the 0 value by the original rmax (does not matter as if there was a 0 value, it means that the rmax is going to be multiply by 0)
+        if (r_maxN[i] == 0)
+          # r_maxN[i] = species_params$r_max[i]
+          r_maxN[i] = 1
+      return(r_maxN * rdi / (r_maxN + rdi))
+      #return(species_params$r_max * rdi / (species_params$r_max+rdi))
     }
     
     # Set fishing parameters: selectivity and catchability -------------
