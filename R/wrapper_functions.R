@@ -364,7 +364,7 @@ set_trait_model <- function(no_sp = 10,
     
     w_inf <- 10^seq(from = log10(min_w_inf), to = log10(max_w_inf), length = no_sp)
     w_mat <- w_inf * eta
-    
+
     # Check gears
     if (length(knife_edge_size) > no_sp) {
         stop("There cannot be more gears than species in the model")
@@ -431,6 +431,7 @@ set_trait_model <- function(no_sp = 10,
             trait_params_df,
             min_w = min_w,
             no_w = no_w,
+            min_w_pp = min_w_pp,
             w_pp_cutoff = w_pp_cutoff,
             n = n,
             p = p,

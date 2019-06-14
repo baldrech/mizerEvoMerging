@@ -7,7 +7,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     no_w = 100, # number of size bins community spectrum
                     min_w = 0.001, #min size bin of community spectrum/The smallest size of the species community size spectrum
                     max_w = max_w_inf * 1.1, #max size bin of both spectrum
-                    # min_w_pp = 1e-10, #min size bin of background size spectrum
+                    min_w_pp = 1e-10, #min size bin of background size spectrum
                     # no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
                     w_pp_cutoff = 1, # cut of size of the background spectrum
                     k0 = 50, # recruitment adjustment parameter
@@ -89,6 +89,16 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     avail_AA = 0,
                     ...){
 tic()
+  
+  # deactivate temperature functions if temperature is NA
+  # if(is.na(temperature))
+  # {
+  #   ea_met = 0 # their default is not 0
+  #   ea_int = 0
+  #   ed_int = 0
+  #   
+  # }
+  
   if (is.null(initCondition))
   {
     firstRun = 1
@@ -101,7 +111,7 @@ tic()
                        no_w = no_w, 
                        min_w = min_w, 
                        max_w = max_w,
-                       # min_w_pp = min_w_pp, 
+                       min_w_pp = min_w_pp,
                        w_pp_cutoff = w_pp_cutoff,
                        k0 = k0, 
                        n = n, 
@@ -216,6 +226,17 @@ tic()
                    alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
+                 predation = {
+                   # PPMR
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                   # feeding kernel
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   # recalculate gamma if necessary
+                   # alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   # mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                 },
                  eta = {
                    # Trait = eta
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
@@ -281,12 +302,16 @@ tic()
     #need to update some suff now that there is one more sp
     no_sp = dim(param@species_params)[1]
     # Recreate the "param" object needed for the projection
+    
+
+    
     if (print_it) cat(sprintf("Creating first MizerParams object.\n"))
-    param <- MizerParams(param@species_params, no_w = no_w,  w_pp_cutoff = w_pp_cutoff, max_w = max_w,
+    param <- MizerParams(param@species_params, no_w = no_w,  w_pp_cutoff = w_pp_cutoff, max_w = max_w, min_w_pp = min_w_pp,
                          n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
     if (print_it) cat(sprintf("Done\n"))
+
     # redistribute the abundance of the phenotypes more randomly
     template <- n_init[1:no_sp,]
     for (iSpecies in 1:no_sp) # for every species
@@ -311,7 +336,7 @@ tic()
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
-    param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff,  max_w = max_w,
+    param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff,  max_w = max_w, min_w_pp = min_w_pp,
                          n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
                          interaction = interaction)
@@ -340,16 +365,16 @@ tic()
   interactionSave <- param@interaction # save the interaction matrix at the begining of the simulation
   
   # need to check temperature format
-  if (length(temperature) == 1) temperature = rep(temperature, times = t_max*no_run)
-  
-  for(j in firstRun:no_run){
+  if (length(temperature) == 1 && !is.na(temperature)) temperature = rep(temperature, times = t_max*no_run)
+
+    for(j in firstRun:no_run){
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
     if (print_it) cat(sprintf("run = %s\n",j))
     
     # Select the right temperature vector for the run/ must be t_max length
     temperature_vec <- temperature[seq((j-1)*t_max+1,j*t_max)]
-    if (print_it)
+    if (print_it && !is.na(temperature))
       {cat(sprintf("temperature for the run:\n"))
     print(temperature_vec)}
     
@@ -416,6 +441,17 @@ tic()
                    alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
                    #cat(sprintf("Its diet breadth mutes slightly.\n"))
+                 },
+                 predation = {
+                   # PPMR
+                   sd = as.numeric(mAmplitude *  resident_params["beta"]) # standard deviation
+                   mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd) # change a bit the PPMR
+                   # feeding kernel
+                   sd = as.numeric(mAmplitude *  resident_params["sigma"]) # standard deviation
+                   mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd) # change a bit the diet breadth
+                   # recalculate gamma if necessary
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  eta = {
                    # Trait = eta
@@ -500,7 +536,7 @@ tic()
           }
           
           # Recreate the "param" object needed for the projection
-          trait_params <- MizerParams(sim$data@params@species_params,  no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+          trait_params <- MizerParams(sim$data@params@species_params,  no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w,  min_w_pp = min_w_pp,
                                       n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                                       # normalFeeding = normalFeeding, tau = tau, 
                                       interaction = interaction)
@@ -602,7 +638,7 @@ tic()
       # print(param@species_params)
       # print(Nparam$species)
       
-      param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+      param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w,  min_w_pp = min_w_pp,
                            n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                            # normalFeeding = normalFeeding, tau = tau,
                            interaction = interaction)
@@ -643,7 +679,7 @@ tic()
       interactionSave <- matrix(0.5,ncol = dim(SummaryParams)[1], nrow = dim(SummaryParams)[1])
     }
     # Update all the other param from the dataframe
-    FinalParam <- MizerParams(SummaryParams, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w, 
+    FinalParam <- MizerParams(SummaryParams, no_w = no_w, w_pp_cutoff = w_pp_cutoff, max_w = max_w,  min_w_pp = min_w_pp,
                               n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)

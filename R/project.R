@@ -115,8 +115,10 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     # validObject(params)
   umbrella = FALSE # parameter that says if there are still things alive # might get rid of it
   t_save = dt
+
+  if(is.na(temperature[1])) temperature = rep(params@t_ref, times = t_max) # if temperature is never specified by user we need temperature = tref so it has no effect
     
-    # Do we need to create an effort array?
+  # Do we need to create an effort array?
     if (is.vector(effort)) {
         no_gears <- dim(params@catchability)[1]
         if ((length(effort) > 1) & (length(effort) != no_gears)) {
@@ -258,7 +260,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     no_sp <- nrow(sim@params@species_params) # number of species
     no_w <- length(sim@params@w) # number of fish size bins
     no_w_full<- length(sim@params@w_full) # full size spectrum (including background spectra)
-    
+
     idx <- 2:no_w
     # Hacky shortcut to access the correct element of a 2D array using 1D notation
     # This references the egg size bracket for all species, so for example
@@ -288,8 +290,12 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
         # I need now to adapt the old initial_n_pp to fit the new length of sim@n_pp
         # Will have to do this for algea and benthos one day too
 print("n_pp issue")
-        
+        # print("sim@n_pp")
+        # print(sim@n_pp)
+        # print("init npp")
+        # print(initial_n_pp)
       }
+      
     sim@n[1,,] <- initial_n # probably need to change/tweak this bit
     sim@n_pp[1,] <- initial_n_pp
     sim@n_bb[1,] <- initial_n_bb
