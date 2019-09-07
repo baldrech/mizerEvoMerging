@@ -46,7 +46,7 @@ biom <-function(object,phenotype=T)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
-finalTouch <- function(result, temperature, dt = 0.1, print_it = T)
+finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T)
 {
   ## processing data
   if (print_it) cat("Data handling\n")
@@ -61,7 +61,8 @@ finalTouch <- function(result, temperature, dt = 0.1, print_it = T)
   gc()
   
   # stitiching the sims together
-  Dtime = SummaryParams@species_params$timeMax[1] * dt
+  # Dtime = SummaryParams@species_params$timeMax[1] * dt
+  timeMax <- SummaryParams@species_params$timeMax[1] - previousTime # get the lenght of the sim whithout initial phase for right dim(n), probably an easier way
   Dsp = length(SummaryParams@species_params$ecotype)
   Dw = dim(sim[[1]]@n)[3]
   # put all the sim at the same dimension
@@ -80,31 +81,31 @@ finalTouch <- function(result, temperature, dt = 0.1, print_it = T)
   biom <- do.call("abind", list(biomList, along = 1)) # abind the list
   
   names(dimnames(biom)) = list("time", "species", "size")
-  dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+  dimnames(biom)$time = seq(1, timeMax)*dt
 
   # I have to do the phyto aussi
   phyto <- do.call(abind, c(lapply(sim, function(isim)
     isim@n_pp[-1,]), along = 1))
   names(dimnames(phyto)) = list("time", "size")
-  dimnames(phyto)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+  dimnames(phyto)$time = seq(1, timeMax)*dt
   
   # and other backgrounds
  algea <- do.call(abind, c(lapply(sim, function(isim)
     isim@n_aa[-1,]), along = 1))
  names(dimnames(algea)) = list("time", "size")
- dimnames(algea)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+ dimnames(algea)$time = seq(1, timeMax)*dt
   
  benthos <- do.call(abind, c(lapply(sim, function(isim)
     isim@n_bb[-1,]), along = 1))
  names(dimnames(benthos)) = list("time", "size")
- dimnames(benthos)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+ dimnames(benthos)$time = seq(1, timeMax)*dt
   
   # taking care of the effort
   effort <- do.call(rbind, lapply(sim, function(isim)
     isim@effort))
   effort <- as.matrix(effort[-which(rownames(effort) == "0"),])
   names(dimnames(effort)) = list("time", "knife_edge_gear")
-  dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
+  dimnames(effort)$time = seq(1, timeMax)*dt
   
   # reconstruct the mizer object
   sim = template
