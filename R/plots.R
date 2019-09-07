@@ -2523,7 +2523,7 @@ ratioReproduction <- function(object, time_range = max(as.numeric(dimnames(objec
 
 plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, size = NULL, ylim = c(NA,NA),
                                    f0 = object@params@f0,  t_d = NULL, ed_int = NULL, ea_int = NULL, t_ref = NULL,
-                                   save_it = F, print_it = T, returnData = F)
+                                   save_it = F, print_it = T, returnData = F, energyProfile = T)
 {
   
   if(is.null(size)) size <- # size slot closer to maturation size
@@ -2550,7 +2550,8 @@ plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, siz
   b <- object@params@metab[iSpecies,size] * metabScalar       
   e <- e - b
   
-  myData <- data.frame("temperature" = temperature, "energy" = t(e))
+  if(energyProfile) myData <- data.frame("temperature" = temperature, "energy" = t(e)) 
+  else myData <- dat.frame("temperature" = temperature, "energy" = t(intakeScalar))
   
   p <- ggplot(myData)+
     geom_line(aes(x = temperature, y = energy))+
@@ -2571,7 +2572,7 @@ plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, siz
 
 plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5, temperature = 1:30, size = NULL, traitValue = NULL,
                                      td = NULL, ed = NULL, ea = NULL, tref = NULL, save_it = F, print_it = T, returnData = F, 
-                                     plotName = "traitThermoToleranceTemp.png", plotTitle = "trait thermotolerance")
+                                     plotName = "traitThermoToleranceTemp.png", plotTitle = "trait thermotolerance", plotEnergy = T)
 {
   # object <- get(load("romainZone/temperate/run2/run.Rdata"))
   
@@ -2613,8 +2614,8 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
              b <- object@params@metab[iSpecies,size] * metabScalar       
              e <- e - b
              
-             netE_dat[,which(colnames(netE_dat) == var)] <- e
-             
+             if(plotEnergy) netE_dat[,which(colnames(netE_dat) == var)] <- e
+             else netE_dat[,which(colnames(netE_dat) == var)] <- intakeScalar
            }
          },
          "t_d" = {
@@ -2646,7 +2647,8 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
              b <- object@params@metab[iSpecies,size] * metabScalar       
              e <- e - b
              
-             netE_dat[,which(colnames(netE_dat) == var)] <- e
+             if(plotEnergy) netE_dat[,which(colnames(netE_dat) == var)] <- e
+             else netE_dat[,which(colnames(netE_dat) == var)] <- intakeScalar
              
            }
          },
@@ -2675,65 +2677,64 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
   if(returnData) return(plot_dat) else if(print_it) return(p)
 }
 
-plotNoPhen <- function(object, comments = T, print_it = T, returnData = F, SpIdx = NULL, dt = 0.1)
+plotNoPhen <- function(object, initPop = 1, comments = T, print_it = T, returnData = F, SpIdx = NULL, dt = 0.1)
 {
-timeMax <- object@params@species_params$timeMax[1]
-SpIdx <- 1:9
-exit_df <- data.frame()
-
-
-        SumPar = data.frame(object@params@species_params$species,object@params@species_params$pop,object@params@species_params$extinct)
-
-        colnames(SumPar) = c("species","pop","exit")
-        
-        SumPar$pop[which(SumPar$pop == 0)] = 1 # initial species pop at 1, not 0
-        
-        for (i in 1:dim(SumPar)[1]) if (SumPar$exit[i] == 0) SumPar$exit[i] = timeMax # the not extinct ones get the end sim as extinction value
-        
-        DemList <- list()
-        
-        for (x in SpIdx) # for every species
-        {
-          exit <- NA
-          DemCount = matrix(data = 0, nrow = (timeMax*dt), ncol =2) # create a matrix that count pop and extinction for each time step *dt
-          DemCount[1,1] = 1 # fill the first row
-          SpSumPar <- SumPar[which(SumPar$species == x),] # select the right species df
-          
-          if(dim(SpSumPar)[1] != 1) # if more than one phenotype
-          {
-            for (j in 2:dim(SpSumPar)[1]) # along the df
-              DemCount[ceiling(SpSumPar$pop[j]*dt),1] = DemCount[ceiling(SpSumPar$pop[j-1]*dt),1] + 1 # total number of phenotypes at that time
-            for (j in 1:dim(SpSumPar)[1]) # along the df 
-              if (SpSumPar$exit[j] != timeMax) # do not take into account extinction at the last step (because its not)
-                DemCount[ceiling(SpSumPar$exit[j]*dt),2] = DemCount[ceiling(SpSumPar$exit[j]*dt),2] -1 # an extinction happened at that time
-          } else { DemCount[ceiling(SpSumPar$exit[1]*dt),2] = DemCount[ceiling(SpSumPar$exit[1]*dt),2] -1 } # if only one phenotype in sp
-          
-          # I have a matrix with holes, need to fill them
-          ExCount = 0 
-          for (i in 2:dim(DemCount)[1])
-          {
-            if (DemCount[i,1] == 0) DemCount[i,1] = DemCount[i-1,1]
-            if (DemCount[i,2] != 0)
-            {
-              DemCount[i,2] = ExCount + abs(DemCount[i,2])
-              ExCount = abs(DemCount[i,2]) } else  {
-                DemCount[i,2] =  ExCount 
-              }
-          }
-          
-          pop <- DemCount[,1] - DemCount[,2] # pop - extinction
-          DemCount <- as.data.frame(pop) # keep the alive number of phen
-          colnames(DemCount) <- c("pop")
-          DemCount$time <- as.numeric(rownames(DemCount))
-          DemCount$species <- x
-          DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
-          if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
-          DemList[[x]] <- DemCount
-          
-          if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
-          
+  timeMax <- object@params@species_params$timeMax[1]
+  SpIdx <- 1:9
+  exit_df <- data.frame()
+  
+  SumPar = data.frame(object@params@species_params$species,object@params@species_params$pop,object@params@species_params$extinct)
+  
+  colnames(SumPar) = c("species","pop","exit")
+  
+  SumPar$pop[which(SumPar$pop < (initPop/dt))] = initPop/dt # initial species pop at 1 by default, or defined by user if there was an initialisation
+  
+  for (i in 1:dim(SumPar)[1]) if (SumPar$exit[i] == 0) SumPar$exit[i] = timeMax # the not extinct ones get the end sim as extinction value
+  
+  DemList <- list()
+  
+  for (x in SpIdx) # for every species
+  {
+    exit <- NA
+    DemCount = matrix(data = 0, nrow = (timeMax*dt), ncol =2) # create a matrix that count pop and extinction for each time step *dt
+    DemCount[1,1] = 1 # fill the first row
+    SpSumPar <- SumPar[which(SumPar$species == x),] # select the right species df
+    
+    if(dim(SpSumPar)[1] != 1) # if more than one phenotype
+    {
+      for (j in 2:dim(SpSumPar)[1]) # along the df
+        DemCount[ceiling(SpSumPar$pop[j]*dt),1] = DemCount[ceiling(SpSumPar$pop[j-1]*dt),1] + 1 # total number of phenotypes at that time
+      for (j in 1:dim(SpSumPar)[1]) # along the df 
+        if (SpSumPar$exit[j] != timeMax) # do not take into account extinction at the last step (because its not)
+          DemCount[ceiling(SpSumPar$exit[j]*dt),2] = DemCount[ceiling(SpSumPar$exit[j]*dt),2] -1 # an extinction happened at that time
+    } else { DemCount[ceiling(SpSumPar$exit[1]*dt),2] = DemCount[ceiling(SpSumPar$exit[1]*dt),2] -1 } # if only one phenotype in sp
+    
+    # I have a matrix with holes, need to fill them
+    ExCount = 0 
+    for (i in 2:dim(DemCount)[1])
+    {
+      if (DemCount[i,1] == 0) DemCount[i,1] = DemCount[i-1,1]
+      if (DemCount[i,2] != 0)
+      {
+        DemCount[i,2] = ExCount + abs(DemCount[i,2])
+        ExCount = abs(DemCount[i,2]) } else  {
+          DemCount[i,2] =  ExCount 
         }
-myData <- do.call(rbind,lapply(DemList,function(x)x))
+    }
+    
+    pop <- DemCount[,1] - DemCount[,2] # pop - extinction
+    DemCount <- as.data.frame(pop) # keep the alive number of phen
+    colnames(DemCount) <- c("pop")
+    DemCount$time <- as.numeric(rownames(DemCount))
+    DemCount$species <- x
+    DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
+    if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
+    DemList[[x]] <- DemCount
+    
+    if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
+    
+  }
+  myData <- do.call(rbind,lapply(DemList,function(x)x))
   # do an average across simulation
   # plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
   #                        apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean, na.rm = T),
@@ -2838,7 +2839,7 @@ p <- ggplot(myData) +
   
 }
 
-plotTrait <- function(object, phenotype = F, SpIdx = NULL, dt = 0.1, Normalisation = F, returnData = T)
+plotTrait <- function(object, SpIdx = NULL, dt = 0.1, Normalisation = F, returnData = T)
 {
   # Beware this is gonna be hard
   
@@ -3079,4 +3080,67 @@ plotTrait <- function(object, phenotype = F, SpIdx = NULL, dt = 0.1, Normalisati
   
   return(list(datTdStore,datEdStore))
   
+}
+
+plotTraitPhen <- function(object, trait = NULL, SpIdx = NULL, dt = 0.1, print_it = F, returnData = T, save_it = F, nameSave = "TraitPhen.png", ylimit = c(NA,NA))
+{
+  
+  # Initialisation // bunch of set I need to set up now
+  if (is.null(SpIdx)) SpIdx <- 1:9 # species index
+  if(is.null(trait)) trait <- "td"
+  
+  # Set-up the data right, we need the right apparition, extinction, traits, ...
+  SumPar = object@params@species_params #shortcut
+  TT = cbind(SumPar$species,as.numeric(SumPar$ecotype),dt*SumPar$pop,dt*SumPar$extinct,SumPar$t_d,SumPar$ed_int) # weird things happen without the as.numeric / *0.1 because dt / need to update this to have the traits as arguments
+  colnames(TT) = c("species","phenotype","apparition","extinction","td","ed_int")
+  rownames(TT) = rownames(SumPar)
+  TT = TT[order(TT[,1],decreasing=FALSE),]
+  TT = as.data.frame(TT) # I use TT later in the graphs (its like an artefact)
+  
+  # need to change ecotype name for original species
+  for (iSpecies in SpIdx)
+  {
+    nameList <- TT$phenotype
+    target <- which(TT$phenotype == iSpecies)
+  while (TT$phenotype[target] %in% nameList) TT$phenotype[target] = as.numeric(paste(TT$species[target],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+  }
+  
+  TimeMax <- SumPar$timeMax[1] * dt
+  for (i in 1:dim(TT)[1]) if (TT$extinction[i] == 0) TT$extinction[i] = TimeMax # Fill the extinction value for the non-extinct species
+  
+  plot_dat <- NULL
+  for(iSpecies in SpIdx)
+  {
+    species_dat <- filter(TT,species == iSpecies)  
+    
+    switch (trait,
+            "td" = {selectTrait = species_dat$td},
+            "ed_int" = {selectTrait = species_dat$ed_int},
+            {print("trait not known")}
+    )
+    
+    
+    phen_dat <- data.frame("species" = rep(t(species_dat$species),2), "phen" = rep(t(species_dat$phenotype),2), 
+                           "time" = rbind(t(t(species_dat$apparition)),t(t(species_dat$extinction))), "trait" = rep(t(selectTrait),2))
+    plot_dat <- rbind(plot_dat,phen_dat)
+  }
+  
+  
+  p <- ggplot(plot_dat)+
+    geom_line(aes(x=time,y=trait, group = phen, color = as.factor(species))) +
+    scale_x_continuous(name = "Time in years", limits = c(NA,NA))+
+    scale_y_continuous(name = "Trait value", limits = ylimit)+
+    facet_grid(species ~.)+
+    scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+    theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"), legend.position="bottom",
+          #legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"))+
+    guides(color = guide_legend(nrow=1)) +
+    ggtitle("Trait every phenotypes")
+  
+  
+  if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
