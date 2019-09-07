@@ -42,11 +42,13 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     effort = 0,
                     cannibalism = 1, # stay here for now but going away soon
                     initCondition = NULL, # if I want to input previous mizer object as initial condition
+                    previousTime = 0, # used to add timestamp if initCOndition is not NULL
                     initTime = 1, # time for initialisation
                     param = NULL, # can input a param data.frame to do multispecies model
                     print_it = T, # if you want to display messages or not
                     normalFeeding = F, #if want to normalised feeding kernel
                     mAmplitude = 0.2, # width of distribution of new trait value
+                    initSpread = 1, # increases mamplitude during the initial phase to change the change phenotype range
                     save_it = F, # do you want to save?
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
@@ -207,72 +209,72 @@ tic()
           switch(Trait,
                  size = {
                    # Trait = asymptotic size
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
-                   mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
+                   sd = as.numeric(mAmplitude * initSpread *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                   mutant$w_inf <- abs(mutant$w_inf + rnorm(1, 0, sd)) # change a bit the asymptotic size
                    mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
                    mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
                  },
                  beta = {
                    # Trait = PPMR
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
-                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- abs(mutant$beta + rnorm(1, 0, sd)) # change a bit the PPMR
                    alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  sigma = {
                    # Trait = fedding kernel
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
-                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                   mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
                    alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  predation = {
                    # PPMR
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
-                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- abs(mutant$beta + rnorm(1, 0, sd)) # change a bit the PPMR
                    # feeding kernel
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
-                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
                    # recalculate gamma if necessary
                    # alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    # mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  eta = {
                    # Trait = eta
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
-                   mutant$eta <- mutant$eta + rnorm(1, 0, sd) # change a bit eta
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
+                   mutant$eta <- abs(mutant$eta + rnorm(1, 0, sd)) # change a bit eta
                    mutant$w_mat <- mutant$w_inf * mutant$eta # update
                  },
                  ed_int = {
                    # Trait = ed_int
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
-                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
-                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   mutant$ed_int <- abs(mutant$ed_int + rnorm(1, 0, sd))
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- abs(mutant$ed_int + rnorm(1, 0, sd))
                  },
                  t_d = {
                    # Trait = ed_int
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
-                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
+                   mutant$t_d <- abs(mutant$t_d + rnorm(1, 0, sd))
                  },
                  temperature = {
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
-                   mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd)
-                   while(mutant$ed_int < 2.5) mutant$ed_int <- mutant$ed_int + rnorm(1, 0, sd) # ed_int cannot go lower than 2.5
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
-                   mutant$t_d <- mutant$t_d + rnorm(1, 0, sd)
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$ed_int)
+                   mutant$ed_int <-abs( mutant$ed_int + rnorm(1, 0, sd))
+                   while(mutant$ed_int < 2.5) mutant$ed_int <- abs(mutant$ed_int + rnorm(1, 0, sd)) # ed_int cannot go lower than 2.5
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$t_d)
+                   mutant$t_d <- abs(mutant$t_d + rnorm(1, 0, sd))
                  },
                  
                  all = {
                    # Trait = asymptotic size
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
-                   mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
-                   mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                   mutant$w_inf <- abs(mutant$w_inf + rnorm(1, 0, sd)) # change a bit the asymptotic size
+                   mutant$w_mat <- abs(mutant$w_inf * eta) # calculate from the new w_inf value
                    mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
                    # Trait = predation
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
-                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
-                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
-                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- abs(mutant$beta + rnorm(1, 0, sd)) # change a bit the PPMR
+                   sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                   mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
                    # calculate the new gamma
                    alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
@@ -335,7 +337,9 @@ tic()
     
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
-    Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
+    # Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
+    previousTime <- Nparam$timeMax[1] # how much time has passed in the previous run, useed as ref for time stamps
+    Nparam$timeMax = no_run * t_max / dt + previousTime
     param <- MizerParams(Nparam, no_w = no_w, w_pp_cutoff = w_pp_cutoff,  max_w = max_w, min_w_pp = min_w_pp,
                          n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, t_ref = t_ref,
                          # normalFeeding = normalFeeding, tau = tau, 
@@ -347,8 +351,10 @@ tic()
     n_aa_init = initCondition@n_aa[dim(initCondition@n_aa)[1],] # same for plankton
     n_bb_init = initCondition@n_bb[dim(initCondition@n_bb)[1],] # same for plankton
     if (print_it) cat(sprintf("Starting simulation with previous run.\n"))
-    no_run = no_run + max(Nparam$timeMax)/t_max*dt # update number of runs
-    firstRun = max(Nparam$timeMax)/t_max*dt +1 # state at which run we're starting
+    # no_run = no_run + max(Nparam$timeMax)/t_max*dt # update number of runs
+    # firstRun = max(Nparam$timeMax)/t_max*dt +1 # state at which run we're starting
+
+    firstRun = 1 # at the moment temperature uses j (and first run) to determine the rigth temperature vector // fix: added previousTime arg to balance things so firstRun should be useless now
     nameList = initCondition@params@species_params$ecotype # this list keep in memory all the species name (as I lose some in my ecotypes by getting rid of the extinct/ use to give ecotypes namee)
   }
   
@@ -373,7 +379,7 @@ tic()
     if (print_it) cat(sprintf("run = %s\n",j))
     
     # Select the right temperature vector for the run/ must be t_max length
-    temperature_vec <- temperature[seq((j-1)*t_max+1,j*t_max)]
+    temperature_vec <- temperature[seq(((j-1)*t_max/dt+1),j*t_max/dt)]
     if (print_it && !is.na(temperature))
       {cat(sprintf("temperature for the run:\n"))
     print(temperature_vec)}
@@ -381,7 +387,7 @@ tic()
     # First run without mutants
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
                    initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
-                   checkpoint = j, effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec) # init first step
+                   checkpoint = list(j,previousTime), effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec) # init first step
     
     # Post initialisation -------------------
 
@@ -405,8 +411,8 @@ tic()
           # {print("error in resident")
           #   print(resident_params)}
           mutant <- resident_params # create a perfect copy
-          mutant$pop = sim$i_stop + (j-1)*t_max/dt # what i_time does the mutant appear
-          mutant$run = j
+          mutant$pop = sim$i_stop + (j-1)*t_max/dt + previousTime # what i_time does the mutant appear
+          mutant$run = j + previousTime/t_max*dt
           
           mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
           if(!is.numeric(mutant$ecotype))
@@ -593,7 +599,7 @@ tic()
         # print(class(sim))
         # print(summary(sim))
         sim <- project(trait_params, t_max = t_max, dt = dt, prevSim = sim, mu = mu,
-                       extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort,
+                       extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List, checkpoint = list(j,previousTime), effort = effort,
                        print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec)
         
       }
@@ -684,7 +690,8 @@ tic()
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
-    sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it)
+    # return(list(allRun,FinalParam,temperature))
+    sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it, previousTime = previousTime)
     gc()
     sim = superOpt(sim)
     if (save_it)
