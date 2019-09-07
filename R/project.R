@@ -179,14 +179,18 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     ## Temperature set-up
     ## at the moment we just repeat yearly values for the entire year, no smothing or interpolation is used
     if (length(temperature) == 1) {
-      temperature = rep(temperature,t_max)
+      temperature = rep(temperature,t_max/dt)
       cat(sprintf("your temperature input vector is of size one, repeting it t_max times\n"))
     }
-    if (length(temperature) != t_max) {
-      stop("your temperature input vector is not the same length as t_max\n")
-    }
     
-    time_temperature_dt <- rep(temperature, length = t_max/dt, each = 1/dt) # works if t_max = length(temperature)
+    #TODO
+    # This section assume that temperature is a yearly value vector, not a year*dt one, commenting for now
+    # if (length(temperature) != t_max) {
+    #   stop("your temperature input vector is not the same length as t_max\n")
+    # }
+    # 
+    # time_temperature_dt <- rep(temperature, length = t_max/dt, each = 1/dt) # works if t_max = length(temperature)
+    time_temperature_dt <- temperature # we already give a year*dt temperature vector
     x_axis <- seq(length.out=(t_max/dt),from =1)   # = time vector
     # need smoothing?
     # myData <- data.frame("y" = time_temperature_dt, "x" = x_axis) # create dataframe for smoothing (not sure if needed)
@@ -531,7 +535,7 @@ print("n_pp issue")
               # }
               
               sim@params@species_params$extinct[toto] <-
-                i_time + (checkpoint - 1) * t_max / dt # update the extinction status
+                i_time + (checkpoint[[1]] - 1) * t_max / dt + checkpoint[[2]] # update the extinction status. checkpoint1 is current run number in the simulation, checkpoint2 add time if the simulation started from a previous one
               #print(sim@params@species_params)
               if (sim@params@species_params$extinct[toto] < sim@params@species_params$pop[toto])
                 sim@params@species_params$error[toto] = 2 # if this happen it will be noted by a 2 in the sp ID
