@@ -1015,7 +1015,7 @@ plotlyFMort <- function(object, species = NULL,
 #' plotGrowthCurves(sim, species = "Cod", max_age = 24)
 #' }
 plotGrowthCurves <- function(object, species,
-            max_age = 20, percentage = FALSE, print_it = TRUE) {
+            max_age = 20, percentage = FALSE, print_it = TRUE, highlight = NULL) {
     if (is(object, "MizerSim")) {
         sim <- object
         if (missing(species)) {
@@ -1043,20 +1043,24 @@ plotGrowthCurves <- function(object, species,
         }
         plot_dat <- reshape2::melt(ws)
         plot_dat$Species <- as.character(plot_dat$Species)
-        if (length(species) > 12) {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value, group = Species))
-        } else {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value,
-                              colour = Species, linetype = Species))
-        }
+#        if (length(species) > 12) {
+#            p <- ggplot(plot_dat) +
+#                geom_line(aes(x = Age, y = value, group = Species))
+#        } else {
+           p <- ggplot(plot_dat) +
+               geom_line(aes(x = Age, y = value,
+                             colour = Species, linetype = Species, size = Species))
+#        }
         y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
+        linesize <- rep(0.8, length(params@linetype))
+        names(linesize) <- names(params@linetype)
+        linesize[highlight] <- 1.6
         p <- p +
             scale_x_continuous(name = "Age [Years]") +
             scale_y_continuous(name = y_label) +
             scale_colour_manual(values = sim@params@linecolour) +
-            scale_linetype_manual(values = sim@params@linetype)
+            scale_linetype_manual(values = sim@params@linetype) +
+            scale_size_manual(values = linesize)
 
         # Extra stuff for single-species case
         if (length(species) == 1 && !percentage) {
@@ -1077,9 +1081,9 @@ plotGrowthCurves <- function(object, species,
             }
         }
 
-        if (print_it) {
-            print(p)
-        }
+ #       if (print_it) {
+ #           print(p)
+ #       }
         return(p)
     } else {
         # Plot growth curves using a MizerParams object.
@@ -1110,20 +1114,24 @@ plotGrowthCurves <- function(object, species,
         }
         plot_dat <- reshape2::melt(ws)
         plot_dat$Species <- as.character(plot_dat$Species)
-        if (length(species) > 12) {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value, group = Species))
-        } else {
+ #       if (length(species) > 12) {
+ #           p <- ggplot(plot_dat) +
+ #               geom_line(aes(x = Age, y = value, group = Species))
+#        } else {
             p <- ggplot(plot_dat) +
                 geom_line(aes(x = Age, y = value,
-                              colour = Species, linetype = Species))
-        }
+                              colour = Species, linetype = Species, size = Species))
+#        }
         y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
+        linesize <- rep(0.8, length(params@linetype))
+        names(linesize) <- names(params@linetype)
+        linesize[highlight] <- 1.6
         p <- p +
             scale_x_continuous(name = "Age [Years]") +
             scale_y_continuous(name = y_label) +
             scale_colour_manual(values = params@linecolour) +
-            scale_linetype_manual(values = params@linetype)
+            scale_linetype_manual(values = params@linetype) +
+          scale_size_manual(values = linesize)
 
         # Extra stuff for single-species case
         if (length(species) == 1 && !percentage) {
@@ -1144,11 +1152,58 @@ plotGrowthCurves <- function(object, species,
             }
         }
 
-        if (print_it) {
-            print(p)
-        }
+ #       if (print_it) {
+ #           print(p)
+ #       }
         return(p)
     }
+}
+
+#' Plot growth curves giving weight as a function of age with plotly
+#' @inherit plotGrowthCurves params return description details seealso
+#' @export
+#' @family plotting functions
+plotlyGrowthCurves <- function(object, species,
+                               max_age = 20,
+                               percentage = FALSE,
+                               highlight = NULL) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotGrowthCurves", argg))
+}
+
+
+#' Plot diet
+#' 
+#' @inheritParams plotSpectra
+#'
+#' @return A ggplot2 object
+#' @export
+#' @family plotting functions
+
+plotDiet <- function(object, species, diettime = tmax) {
+  model <- object
+  if (is.integer(species)) {
+    species <- params@species_params$species[species]
+  }
+ # diet <- getDiet(params)[params@species_params$species == species, , ]
+  diet.full <- getDiet(params,model@n[diettime,,],model@n_pp[diettime,], model@n_bb[diettime,], model@n_aa[diettime,], proportion = T)
+  diet <- diet.full[species,,]
+  prey <- dimnames(diet)$prey
+  prey <- factor(prey, levels = rev(prey))
+  plot_dat <- data.frame(
+    Proportion = c(diet),
+    w = params@w,
+    Prey = rep(prey, each = length(params@w)))
+  plot_dat <- plot_dat[plot_dat$Proportion > 0, ]
+#  colorvalues <- c(params@linecolour[c(1:length(params@species_params$species))])
+#  colorvalues <- c(colorvalues,"green","brown","yellow")
+  ggplot(plot_dat) +
+    geom_area(aes(x = w, y = Proportion, fill = Prey)) +
+    scale_x_log10() +
+    labs(x = "Size [g]") +
+    geom_vline(xintercept = log(params@species_params$w_mat[species])) +
+    ggtitle(as.character(params@species_params$species[species])) 
+ #   scale_fill_manual(values = colorvalues)
 }
 
 
