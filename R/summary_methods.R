@@ -23,21 +23,37 @@
 #' returned rate is zero.
 #'
 #' @param params A MizerParams object
+#' @param proportion If TRUE (default) the function returns the diet as a
+#'   proportion of the total consumption rate. If FALSE it returns the 
+#'   consumption rate in grams.
 #' @param n An array (species x size) with the abundance density of fish
 #' @param n_pp A vector with the abundance of plankton
+#' @param n_bb A vector with the abundance of benthos
+#' @param n_aa A vector with the abundance of algae
 #' 
-#' @return An array (predator species  x predator size x (prey species + plankton) )
+#' @return An array (predator species  x predator size x (prey species + 3 background spectra) )
 #' @export
 #' 
-getDiet <- function(params, n, n_pp, n_bb, n_aa) {
-  # The code is based on that for getAvailEnergy()
-  no_sp <- dim(n)[1]
-  no_w <- dim(n)[2]
-  no_w_full <- length(n_pp)
+getDiet <- function(params, 
+                    n, 
+                    n_pp, 
+                    n_bb, 
+                    n_aa,
+                    proportion = TRUE) {
+ 
+  # The code is based on that for getAvailEnergy(), but on Nov5 2019 has been modified based on the latest mizer master getDiet() by Gustav
+  species <- params@species_params$species
+  no_sp <- length(species)
+#@  no_sp <- dim(n)[1]
+#@  no_w <- dim(n)[2]
+#@  no_w_full <- length(n_pp)
+  no_w <- length(params@w)
+  no_w_full <- length(params@w_full)
+  
   diet <- array(0, dim = c(no_sp, no_w, no_sp + 3),
-                dimnames = list("predator" = dimnames(n)$sp,
+                dimnames = list("predator" = species,
                                 "w" = dimnames(n)$w,
-                                "prey" = c(dimnames(n)$sp, "plankton", "benthos", "algae")))
+                                "prey" = c(as.character(species), "plankton", "benthos", "algae")))
   # idx_sp are the index values of object@w_full such that
   # object@w_full[idx_sp] = object@w
   idx_sp <- (no_w_full - no_w + 1):no_w_full
@@ -53,23 +69,24 @@ getDiet <- function(params, n, n_pp, n_bb, n_aa) {
     ae <- matrix(params@pred_kernel[, , idx_sp, drop = FALSE],
                  ncol = no_w) %*%
       t(sweep(n, 2, params@w * params@dw, "*"))
-    dim(ae) <- c(no_sp, no_w, no_sp)
-    # We multiply by interaction matrix, choosing the correct dimensions
-    diet[, , 1:no_sp] <- sweep(ae, c(1, 3), params@interaction, "*")
+      diet[, , 1:no_sp] <- ae #new#@
+#@    dim(ae) <- c(no_sp, no_w, no_sp)
+#@    # We multiply by interaction matrix, choosing the correct dimensions
+#@    diet[, , 1:no_sp] <- sweep(ae, c(1, 3), params@interaction, "*")
     
     #### CHECK THIS PART ####
-    # Eating the plankton
+    # Eating the plankton: On May 2 this is corrected NOT to multiple by availability at this stage 
     diet[, , no_sp + 1] <- rowSums(sweep(
-      params@pred_kernel, 3, params@dw_full * params@w_full * n_pp * params@species_params$avail_PP,
-      "*", check.margin = FALSE), dims = 2)
+      params@pred_kernel, 3, params@dw_full * params@w_full * n_pp, "*"), dims = 2)
+    #"*", check.margin = FALSE), dims = 2)
     # Eating the benthos
     diet[, , no_sp + 2] <- rowSums(sweep(
-      params@pred_kernel, 3, params@dw_full * params@w_full * n_bb * params@species_params$avail_BB,
-      "*", check.margin = FALSE), dims = 2)
+      params@pred_kernel, 3, params@dw_full * params@w_full * n_bb, "*"), dims = 2)
+    #     "*", check.margin = FALSE), dims = 2)
     # Eating the algae
     diet[, , no_sp + 3] <- rowSums(sweep(
-      params@pred_kernel, 3, params@dw_full * params@w_full * n_aa * params@species_params$avail_AA,
-      "*", check.margin = FALSE), dims = 2)
+      params@pred_kernel, 3, params@dw_full * params@w_full * n_aa, "*"), dims = 2)
+    # "*", check.margin = FALSE), dims = 2)
     #### 
     
   } 
@@ -94,26 +111,37 @@ getDiet <- function(params, n, n_pp, n_bb, n_aa) {
     # Due to numerical errors we might get negative or very small entries that
     # should be 0
     ae[ae < 1e-18] <- 0
-    diet[] <- ae
-
-    # Multiply by interaction matrix
-    diet[, , 1:no_sp] <- sweep(diet[, , 1:no_sp], c(1, 3), params@interaction, "*")
+    diet[, , 1:(no_sp + 3)] <- ae
     
-    #Apply the background availability scalars: plankton 
-    #print(diet[,80 , no_sp + 1])
-    #print(params@species_params$avail_PP)
-    diet[, , no_sp + 1] <- diet[, , no_sp + 1] * params@species_params$avail_PP
-    #print(diet[,80 , no_sp + 1])
-    #Apply the background availability scalars: benthos 
-    diet[, , no_sp + 2] <- diet[, , no_sp + 2] * params@species_params$avail_BB
-    #Apply the background availability scalars: algae 
-    diet[, , no_sp + 3] <- diet[, , no_sp + 3] * params@species_params$avail_AA
   }
+  
+  #print("diet dims")
+  #print(dim(diet))
+  #print(diet[1,c(100:120),19])
+  ## On May2: only now multiply by the interaction and availability 
+  inter <- cbind(params@interaction, params@species_params$avail_PP, params@species_params$avail_BB, params@species_params$avail_AA)
+  
+  #  diet.temp  <- sweep(diet[, , 1:(no_sp + 3), drop = FALSE],
+  #                                         c(1, 3), inter, "*")
+  #  print(diet.temp[1,c(100:120),19])  
+  
+  diet[, , 1:(no_sp + 3)] <- sweep(sweep(diet[, , 1:(no_sp + 3), drop = FALSE],
+                                         c(1, 3), inter, "*"), 
+                                   c(1, 2), params@search_vol, "*")
+  #  print("diet dims")
+  #  print(dim(diet))
+  #  print(diet[1,c(100:120),19]) 
+  
   
   # Correct for satiation and keep only entries corresponding to fish sizes
   f <- getFeedingLevel(params, n, n_pp, n_bb, n_aa) ##AA
   fish_mask <- n > 0
   diet <- sweep(diet, c(1, 2), (1 - f) * fish_mask, "*")
+  if (proportion) {
+    total <- rowSums(diet, dims = 2)
+    diet <- sweep(diet, c(1, 2), total, "/")
+    diet[is.nan(diet)] <- 0
+  }
   return(diet)
 }
 
