@@ -244,7 +244,7 @@ plotBiomass <- function(sim,
                        labels = prettyNum, name = y_label) +
     scale_x_continuous(name = x_label) +
     scale_colour_manual(values = sim@params@linecolour) +
-    scale_linetype_manual(values = sim@params@linetype)
+    scale_linetype_manual(values = sim@params@linetype) 
   
   if (background) {
     # Add background species in light grey
@@ -257,11 +257,13 @@ plotBiomass <- function(sim,
     }
   }
   
-  linesize <- rep(0.8, length(sim@params@linetype))
+  linesize <- rep(0.6, length(sim@params@linetype))
   names(linesize) <- names(sim@params@linetype)
-  linesize[highlight] <- 1.6
-  p <- p + scale_size_manual(values = linesize) +
+  linesize[highlight] <- 1.2
+  p <- p + 
+    scale_size_manual(values = linesize) +
     geom_line(aes(colour = Species, linetype = Species, size = Species))
+  
   
   return(p)
 }
@@ -707,10 +709,11 @@ plot_spectra <- function(params, n, n_pp, n_bb, n_aa,
  #   if (print_it)
  #       print(p)
     
-    linesize <- rep(0.8, length(params@linetype))
+    linesize <- rep(0.6, length(params@linetype))
     names(linesize) <- names(params@linetype)
-    linesize[highlight] <- 1.6
-    p <- p + scale_size_manual(values = linesize) + 
+    linesize[highlight] <- 1.2
+    p <- p + 
+      scale_size_manual(values = linesize) + 
       geom_line(aes(colour = Species, linetype = Species, size = Species))    
 
     return(p)
@@ -764,7 +767,7 @@ plotlySpectra <- function(object, species = NULL,
 plotFeedingLevel <- function(sim,
             species = dimnames(sim@n)$sp,
             time_range = max(as.numeric(dimnames(sim@n)$time)),
-            print_it = TRUE, ...) {
+            print_it = TRUE, highlight = NULL, all.sizes = FALSE, ...) {
     feed_time <- getFeedingLevel(sim, time_range = time_range, ##AA
                                  drop = FALSE, ...)
     feed <- apply(feed_time, c(2, 3), mean)
@@ -773,22 +776,52 @@ plotFeedingLevel <- function(sim,
     plot_dat <- data.frame(value = c(feed),
                            Species = dimnames(feed)[[1]],
                            w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, group = Species))
-    } else {
+    #@ updated from here 
+    if (!all.sizes) {
+      # Remove feeding level for sizes outside a species' size range
+      for (sp in species) {
+        plot_dat$value[plot_dat$Species == sp &
+                         (plot_dat$w < params@species_params[sp, "w_min"] |
+                            plot_dat$w > params@species_params[sp, "w_inf"])] <- NA
+      }
+      plot_dat <- plot_dat[complete.cases(plot_dat), ]
+    }
+    
+#    if (length(species) > 12) {
+#        p <- ggplot(plot_dat) +
+#            geom_line(aes(x = w, y = value, group = Species))
+#    } else {
         p <- ggplot(plot_dat) +
             geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
-    p <- p +
+#    }
+        
+        linesize <- rep(0.8, length(params@linetype))
+        names(linesize) <- names(params@linetype)
+        linesize[highlight] <- 1.6
+        
+        p <- p +
         scale_x_continuous(name = "Size [g]", trans = "log10") +
         scale_y_continuous(name = "Feeding Level", limits = c(0, 1)) +
         scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
+        scale_linetype_manual(values = sim@params@linetype) +
+        scale_size_manual(values = linesize)  
+#   if (print_it) {
+#        print(p)
+#    }
     return(p)
+}
+
+#' Plot the feeding level of species by size with plotly
+#' 
+#' @inherit plotFeedingLevel params return description details seealso
+#' @export
+#' @family plotting functions
+plotlyFeedingLevel <- function(object,
+                               species = NULL,
+                               time_range,
+                               highlight = NULL, ...) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotFeedingLevel", argg))
 }
 
 
@@ -820,34 +853,58 @@ plotFeedingLevel <- function(sim,
 #' plotM2(sim)
 #' plotM2(sim, time_range = 10:20)
 #' }
-plotM2 <- function(sim, species = dimnames(sim@n)$sp,
+plotPredMort <- function(sim, species = dimnames(sim@n)$sp,
                    time_range = max(as.numeric(dimnames(sim@n)$time)),
-                   print_it = TRUE, ...) {
-    m2_time <- getM2(sim, time_range = time_range, intakeScalar = sim@intTempScalar[,,time_range], drop = FALSE, ...)
+                   print_it = TRUE, highlight = NULL, ...) {
+    m2_time <- getPredMort(sim, time_range = time_range, intakeScalar = sim@intTempScalar[,,time_range], drop = FALSE, ...)
     m2 <- apply(m2_time, c(2, 3), mean)
     m2 <- m2[as.character(dimnames(m2)[[1]]) %in% species, , 
              drop = FALSE]
     plot_dat <- data.frame(value = c(m2),
                            Species = dimnames(m2)[[1]],
                            w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, group = Species))
-    } else {
+#    if (length(species) > 12) {
+#        p <- ggplot(plot_dat) +
+#            geom_line(aes(x = w, y = value, group = Species))
+#    } else {
         p <- ggplot(plot_dat) +
             geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
+#    }
+    linesize <- rep(0.8, length(params@linetype))
+    names(linesize) <- names(params@linetype)
+    linesize[highlight] <- 1.6    
     p <- p +
         scale_x_continuous(name = "Size [g]", trans = "log10") +
         scale_y_continuous(name = "Predation mortality [1/year]",
                            limits = c(0, max(plot_dat$value))) +
         scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
+        scale_linetype_manual(values = sim@params@linetype) +
+        scale_size_manual(values = linesize)
+ #   if (print_it) {
+ #       print(p)
+ #   }
     return(p)
 }
+
+#' Alias for plotPredMort
+#' 
+#' An alias provided for backward compatibility with mizer version <= 1.0
+#' @inherit plotPredMort
+#' @export
+plotM2 <- plotPredMort
+
+#' Plot predation mortality rate of each species against size with plotly
+#' @inherit plotPredMort params return description details seealso
+#' @export
+#' @family plotting functions
+plotlyPredMort <- function(object, species = NULL,
+                           time_range,
+                           highlight = NULL, ...) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotPredMort", argg))
+}
+
+
 
 
 #' Plot total fishing mortality of each species by size
@@ -881,30 +938,47 @@ plotM2 <- function(sim, species = dimnames(sim@n)$sp,
 #' }
 plotFMort <- function(sim, species = dimnames(sim@n)$sp,
                       time_range = max(as.numeric(dimnames(sim@n)$time)),
-                      print_it = TRUE, ...){
+                      print_it = TRUE, highlight = NULL, ...){
     f_time <- getFMort(sim, time_range = time_range, drop = FALSE, ...)
     f <- apply(f_time, c(2, 3), mean)
     f <- f[as.character(dimnames(f)[[1]]) %in% species, , drop = FALSE]
     plot_dat <- data.frame(value = c(f),
                            Species = dimnames(f)[[1]],
                            w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) + geom_line(aes(x = w, y = value, group = Species))
-    } else {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
+ #   if (length(species) > 12) {
+ #       p <- ggplot(plot_dat) + geom_line(aes(x = w, y = value, group = Species))
+ #   } else {
+    linesize <- rep(0.8, length(params@linetype))
+    names(linesize) <- names(params@linetype)
+    linesize[highlight] <- 1.6  
+    
+    p <- ggplot(plot_dat) +
+            geom_line(aes(x = w, y = value, colour = Species, linetype = Species, size = Species))
+ #   }
     p <- p +
         scale_x_continuous(name = "Size [g]", trans = "log10") +
         scale_y_continuous(name = "Fishing mortality [1/Year]",
                            limits = c(0, max(plot_dat$value))) +
         scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
+        scale_linetype_manual(values = sim@params@linetype) + 
+        scale_size_manual(values = linesize)
+#   if (print_it) {
+#        print(p)
+#    }
     return(p)
 }
+
+#' Plot total fishing mortality of each species by size with plotly
+#' @inherit plotPredMort params return description details seealso
+#' @export
+#' @family plotting functions
+plotlyFMort <- function(object, species = NULL,
+                        time_range,
+                        highlight = NULL, ...) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotFMort", argg))
+}
+
 
 
 #' Plot growth curves giving weight as a function of age
@@ -1250,7 +1324,7 @@ setMethod("plot", signature(x = "MizerSim", y = "missing"),
             p1 <- plotFeedingLevel(x, ...)
             p2 <- plotSpectra(x, ...)
             p3 <- plotBiomass(x, y_ticks = 3, ...)
-            p4 <- plotM2(x, ...)
+            p4 <- plotPredMort(x, ...)
             p5 <- plotFMort(x, ...)
             grid::grid.newpage()
             glayout <- grid::grid.layout(3, 2) # widths and heights arguments
