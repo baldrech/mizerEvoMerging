@@ -1180,28 +1180,37 @@ plotlyGrowthCurves <- function(object, species,
 #' @export
 #' @family plotting functions
 
-plotDiet <- function(object, species, diettime = tmax) {
+#plotDiet <- function(object, species, diettime = tmax) {
+ plotDiet <- function(object, diettime = tmax) {
   model <- object
-  if (is.integer(species)) {
-    species <- params@species_params$species[species]
-  }
+#  if (is.integer(species)) {
+#    species <- params@species_params$species[species]
+#  }
  # diet <- getDiet(params)[params@species_params$species == species, , ]
-  diet.full <- getDiet(params,model@n[diettime,,],model@n_pp[diettime,], model@n_bb[diettime,], model@n_aa[diettime,], proportion = T)
-  diet <- diet.full[species,,]
+  diet <- getDiet(params,model@n[diettime,,],model@n_pp[diettime,], model@n_bb[diettime,], model@n_aa[diettime,], proportion = T)
+#  diet <- diet.full[species,,]
   prey <- dimnames(diet)$prey
+  predator <- dimnames(diet)$predator
   prey <- factor(prey, levels = rev(prey))
+  predator <- factor(predator, levels = (predator))
+  w.temp = rep(params@w, each = length(predator))
+  w = rep(w.temp, times = length(prey))
   plot_dat <- data.frame(
     Proportion = c(diet),
-    w = params@w,
-    Prey = rep(prey, each = length(params@w)))
+    w = w,
+    Prey = rep(prey, each = (length(params@w)*length(predator))),
+#    Predator = rep(predator, each = (length(params@w)*length(prey))))
+    Predator = rep(predator))
   plot_dat <- plot_dat[plot_dat$Proportion > 0, ]
 #  colorvalues <- c(params@linecolour[c(1:length(params@species_params$species))])
 #  colorvalues <- c(colorvalues,"green","brown","yellow")
   ggplot(plot_dat) +
     geom_area(aes(x = w, y = Proportion, fill = Prey)) +
+    facet_wrap(~ Predator, ncol=5) +
     scale_x_log10() +
     labs(x = "Size [g]") +
-    geom_vline(xintercept = log(params@species_params$w_mat[species])) +
+## TO DO - would be nice to add a line indicating maturation size for each species
+ #   geom_vline(xintercept = log(params@species_params$w_mat)) +
     ggtitle(as.character(params@species_params$species[species])) 
  #   scale_fill_manual(values = colorvalues)
 }
