@@ -924,31 +924,6 @@ getSMort <- function(object, n, n_pp, n_bb, n_aa, intakeScalar, metScalar,
 #'
 #' @return A two dimensional array of instantaneous senescence mortality (species x size). 
 
-getSenMort <- function(object, n){
-  if (!all(dim(e) == c(nrow(object@species_params), length(object@w)))) {
-    stop("e argument must have dimensions: no. species (",
-         nrow(object@species_params), ") x no. size bins (",
-         length(object@w), ")")
-  }
-  
-  k.sm <- 0.5
-  xsw <- 0.9
-  sen.e <- 3
-  print(1)
-  temp1 <- xsw*object@species_params$w_inf
-  print(temp1)
-  print(object@w)
-  temp <- object@w-xsw*object@species_params$w_inf
-  print(temp)
-  print(2)
-  
-  mu_Sen = k.sm * 10^(sen.e*(object@w-xsw*object@species_params$w_inf))
-  print(dim(mu_Sen))
-
-  return(mu_Sen)
-}
-
-
 #' Get energy rate available for reproduction
 #'
 #' Calculates the energy rate available by species and size for reproduction
