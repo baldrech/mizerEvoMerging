@@ -142,37 +142,42 @@ getSSBFrame <- function(sim,
 #' @export
 #' @seealso \code{\link{getBiomass}}
 getBiomassFrame <- function(sim,
-            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
-            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
-            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
-            ylim = c(NA, NA), total = FALSE, ...){
-    b <- getBiomass(sim, ...)
-    if (start_time >= end_time) {
-        stop("start_time must be less than end_time")
-    }
-    # Select time range
-    b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
-               (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
-    b_total <- rowSums(b)
-    # Include total
-    if (total) {
-        b <- cbind(b, Total = b_total)
-        species <- c("Total", species)
-    }
-    bm <- reshape2::melt(b)
-    # Implement ylim and a minimal cutoff
-    min_value <- 1e-20
-    bm <- bm[bm$value >= min_value &
-                 (is.na(ylim[1]) | bm$value >= ylim[1]) &
-                 (is.na(ylim[2]) | bm$value <= ylim[1]), ]
-    names(bm) <- c("Year", "Species", "Biomass")
-    # Force Species column to be a factor (otherwise if numeric labels are
-    # used they may be interpreted as integer and hence continuous)
-    bm$Species <- as.factor(bm$Species)
-    # Select species
-    bm <- bm[bm$Species %in% species, ]
-
-    return(bm)
+                            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                            ylim = c(NA, NA), total = FALSE, ...) {
+  b <- getBiomass(sim, ...)
+  if (start_time >= end_time) {
+    stop("start_time must be less than end_time")
+  }
+  # Select time range
+  b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
+           (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
+  b_total <- rowSums(b)
+  # Include total
+  if (total) {
+    b <- cbind(b, Total = b_total)
+    species <- c("Total", species)
+  }
+  bm <- reshape2::melt(b)
+  
+  # Implement ylim and a minimal cutoff
+  min_value <- 1e-20
+  bm <- bm[bm$value >= min_value &
+             (is.na(ylim[1]) | bm$value >= ylim[1]) &
+             (is.na(ylim[2]) | bm$value <= ylim[2]), ]
+  names(bm) <- c("Year", "Species", "Biomass")
+  
+  # Force Species column to be a factor (otherwise if numeric labels are
+  # used they may be interpreted as integer and hence continuous).
+  # Need to keep species in order for legend.
+  species_levels <- c(dimnames(sim@n)$sp, "Background", "Plankton", "Total")
+  bm$Species <- factor(bm$Species, levels = species_levels)
+  
+  # Select species
+  bm <- bm[bm$Species %in% species, ]
+  
+  return(bm)
 }
 
 
@@ -219,66 +224,69 @@ getBiomassFrame <- function(sim,
 #' plotBiomass(sim, y_ticks = 3)
 #' }
 plotBiomass <- function(sim,
-            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
-            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
-            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
-            y_ticks = 6, print_it = TRUE,
-            ylim = c(NA, NA),
-            total = FALSE, background = TRUE, ...){
-    b <- getBiomass(sim, ...)
-    if (start_time >= end_time) {
-        stop("start_time must be less than end_time")
+                        species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                        start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                        end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                        y_ticks = 6,
+                        ylim = c(NA, NA),
+                        total = FALSE, background = TRUE, highlight = NULL, ...) {
+  # First we get the data frame for all species, including the background
+  bm <- getBiomassFrame(sim, species = dimnames(sim@n)$sp,
+                        start_time = start_time,
+                        end_time = end_time,
+                        ylim = ylim, total = total, ...)
+  # Select species
+  spec_bm <- bm[bm$Species %in% c("Total", species), ]
+  x_label <- "Year"
+  y_label <- "Biomass [g]"
+  p <- ggplot(spec_bm, aes(x = Year, y = Biomass)) +
+    scale_y_continuous(trans = "log10", breaks = log_breaks(n = y_ticks),
+                       labels = prettyNum, name = y_label) +
+    scale_x_continuous(name = x_label) +
+    scale_colour_manual(values = sim@params@linecolour) +
+    scale_linetype_manual(values = sim@params@linetype)
+  
+  if (background) {
+    # Add background species in light grey
+    back_sp <- dimnames(sim@n)$sp[is.na(sim@params@A)]
+    back_bm <- bm[bm$Species %in% back_sp, ]
+    if (nrow(back_bm) > 0) {
+      p <- p + geom_line(aes(group = Species), data = back_bm,
+                         colour = sim@params@linecolour["Background"],
+                         linetype = sim@params@linetype["Background"])
     }
-    # Select time range
-    b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
-               (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
-    b_total <- rowSums(b)
-    # Include total
-    if (total) {
-        b <- cbind(b, Total = b_total)
-        species <- c("Total", species)
-    }
-    names(dimnames(b)) <- c("time", "Species")
-    bm <- reshape2::melt(b)
-    # Force Species column to be a factor (otherwise if numeric labels are
-    # used they may be interpreted as integer and hence continuous)
-    bm$Species <- as.factor(bm$Species)
-    # Implement ylim and a minimal cutoff
-    min_value <- 1e-20
-    bm <- bm[bm$value >= min_value &
-                 (is.na(ylim[1]) | bm$value >= ylim[1]) &
-                 (is.na(ylim[2]) | bm$value <= ylim[1]), ]
-    # Select species
-    spec_bm <- bm[bm$Species %in% species, ]
-    x_label <- "Year"
-    y_label <- "Biomass [g]"
-    p <- ggplot(spec_bm, aes(x = time, y = value)) +
-        scale_y_continuous(trans = "log10", breaks = log_breaks(n = y_ticks),
-                           labels = prettyNum, name = y_label) +
-        scale_x_continuous(name = x_label) +
-        scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-
-    if (background) {
-        # Add background species in light grey
-        back_sp <- dimnames(sim@n)$sp[is.na(sim@params@A)]
-        back_bm <- bm[bm$Species %in% back_sp, ]
-        p <- p + geom_line(aes(group = Species), data = back_bm,
-                           colour = "lightgrey")
-    }
-
-    if ( (length(species) + total) > 12) {
-        p <- p + geom_line(aes(group = Species))
-    } else {
-        p <- p +
-            geom_line(aes(colour = Species, linetype = Species))
-    }
-    if (print_it) {
-        print(p)
-    }
-    return(p)
+  }
+  
+  linesize <- rep(0.8, length(sim@params@linetype))
+  names(linesize) <- names(sim@params@linetype)
+  linesize[highlight] <- 1.6
+  p <- p + scale_size_manual(values = linesize) +
+    geom_line(aes(colour = Species, linetype = Species, size = Species))
+  
+  return(p)
 }
 
+#' Plot the biomass of species against time with plotly
+#' 
+#' @inherit plotBiomass params return description details seealso
+#' @inheritDotParams get_size_range_array -params
+#' @export
+#' @family plotting functions
+plotlyBiomass <- function(sim,
+                          species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                          start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                          end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                          y_ticks = 6,
+                          ylim = c(NA, NA),
+                          total = FALSE,
+                          background = TRUE,
+                          highlight = NULL,
+                          ...) {
+  argg <- c(as.list(environment()), list(...))
+  ggplotly(do.call("plotBiomass", argg))
+  # ggplotly(do.callplotBiomass(sim, species, start_time, end_time, y_ticks,
+  #                      ylim, total, background, ...))
+}
 
 #' Plot the total yield of species through time
 #'
@@ -289,116 +297,117 @@ plotBiomass <- function(sim,
 #' @param sim An object of class \linkS4class{MizerSim}
 #' @param sim2 An optional second object of class \linkS4class{MizerSim}. If
 #'   this is provided its yields will be shown on the same plot in bolder lines.
-#' @param species Name or vector of names of the species to be plotted. By
-#'   default all species contained in \code{sim} are plotted.
-#' @param print_it Display the plot, or just return the ggplot2 object.
-#'   Defaults to TRUE.
-#' @param total A boolean value that determines whether the total yield from
-#'   all species in the system is plotted as well. Default is FALSE.
+#' @inheritParams plotSpectra
 #' @param log Boolean whether yield should be plotted on a logarithmic axis. 
 #'   Defaults to true.
-#' @param ... Other arguments to pass to \code{\link{getYield}} method.
 #'
 #' @return A ggplot2 object
 #' @export
-#' @seealso \code{\link{getYield}}
+#' @family plotting functions
+#' @seealso \code{\link{plotting_functions}},  \code{\link{getYield}}
 #' @examples
-#' \dontrun{
+#' 
 #' data(NS_species_params_gears)
 #' data(inter)
-#' params <- MizerParams(NS_species_params_gears, inter)
-#' sim <- project(params, effort=1, t_max=20, t_save = 0.2)
+#' params <- suppressMessages(set_multispecies_model(NS_species_params_gears, inter))
+#' sim <- project(params, effort=1, t_max=20, t_save = 0.2, progress_bar = FALSE)
 #' plotYield(sim)
 #' plotYield(sim, species = c("Cod", "Herring"), total = TRUE)
 #' 
 #' # Comparing with yield from twice the effort
-#' sim2 <- project(params, effort=2, t_max=20, t_save = 0.2)
+#' sim2 <- project(params, effort=2, t_max=20, t_save = 0.2, progress_bar = FALSE)
 #' plotYield(sim, sim2, species = c("Cod", "Herring"), log = FALSE)
-#' }
+#' 
 plotYield <- function(sim, sim2,
                       species = dimnames(sim@n)$sp,
-                      print_it = TRUE, total = FALSE, log = TRUE, ...){
-    if (missing(sim2)) {
-        y <- getYield(sim, ...)
-        y_total <- rowSums(y)
-        y <- y[, (as.character(dimnames(y)[[2]]) %in% species),
-               drop = FALSE]
-        if (total) {
-            # Include total
-            y <- cbind(y, "Total" = y_total)
-        }
-        ym <- reshape2::melt(y, varnames = c("Year", "Species"),
-                             value.name = "Yield")
-        ym$Species <- as.factor(ym$Species)
-        ym <- subset(ym, ym$Yield > 0)
-        if (nlevels(ym$Species) > 12) {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, group = Species))
-        } else {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield,
-                              colour = Species, linetype = Species))
-        }
-        if (log) {
-            p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]",
-                                        breaks = log_breaks(),
-                                        labels = prettyNum)
-        } else {
-            p <- p + scale_y_continuous(name = "Yield [g/year]")
-        }
-        p <- p +
-            scale_colour_manual(values = sim@params@linecolour) +
-            scale_linetype_manual(values = sim@params@linetype)
-        if (print_it) {
-            print(p)
-        }
-        return(p)
-    } else {
-        if (!all(dimnames(sim@n)$time == dimnames(sim2@n)$time)) {
-            stop("The two simulations do not have the same times")
-        }
-        y <- getYield(sim, ...)
-        y2 <- getYield(sim2, ...)
-        y_total <- rowSums(y)
-        y <- y[, (as.character(dimnames(y)[[2]]) %in% species) & colSums(y) > 0,
-               drop = FALSE]
-        y2_total <- rowSums(y2)
-        y2 <- y2[, (as.character(dimnames(y2)[[2]]) %in% species),
-                 drop = FALSE]
-        if (total) {
-            # Include total
-            y <- cbind(y, Total = y_total)
-            y2 <- cbind(y2, Total = y2_total)
-        }
-        ym <- reshape2::melt(y, varnames = c("Year", "Species"),
-                             value.name = "Yield")
-        ym2 <- reshape2::melt(y2, varnames = c("Year", "Species"),
-                              value.name = "Yield")
-        ym$Simulation <- 1
-        ym2$Simulation <- 2
-        ym <- rbind(ym, ym2)
-        ym$Species <- as.factor(ym$Species)
-        ym$Simulation <- as.factor(ym$Simulation)
-        ym <- subset(ym, ym$Yield > 0)
-        if (nlevels(ym$Species) > 12) {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, group = Species))
-        } else {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, colour = Species,
-                              linetype = Species))
-        }
-        if (log) {
-            p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]")
-        } else {
-            p <- p + scale_y_continuous(name = "Yield [g/year]")
-        }
-        p <- p + facet_wrap(~ Simulation)
-        if (print_it) {
-            print(p)
-        }
-        return(p)
+                      total = FALSE, log = TRUE,
+                      highlight = NULL, ...){
+  # Need to keep species in order for legend
+  species_levels <- c(dimnames(sim@n)$sp, "Background", "Plankton", "Total")
+  if (missing(sim2)) {
+    y <- getYield(sim, ...)
+    y_total <- rowSums(y)
+    y <- y[, (as.character(dimnames(y)[[2]]) %in% species),
+           drop = FALSE]
+    if (total) {
+      # Include total
+      y <- cbind(y, "Total" = y_total)
     }
+    ym <- reshape2::melt(y, varnames = c("Year", "Species"),
+                         value.name = "Yield")
+    ym$Species <- factor(ym$Species, levels = species_levels)
+    ym <- subset(ym, ym$Yield > 0)
+    p <- ggplot(ym) +
+      geom_line(aes(x = Year, y = Yield,
+                    colour = Species, linetype = Species,
+                    size = Species))
+    
+    if (log) {
+      p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]",
+                                  breaks = log_breaks(),
+                                  labels = prettyNum)
+    } else {
+      p <- p + scale_y_continuous(name = "Yield [g/year]")
+    }
+    linesize <- rep(0.8, length(sim@params@linetype))
+    names(linesize) <- names(sim@params@linetype)
+    linesize[highlight] <- 1.6
+    p <- p +
+      scale_colour_manual(values = sim@params@linecolour) +
+      scale_linetype_manual(values = sim@params@linetype) +
+      scale_size_manual(values = linesize)
+    return(p)
+  } else {
+    if (!all(dimnames(sim@n)$time == dimnames(sim2@n)$time)) {
+      stop("The two simulations do not have the same times")
+    }
+    y <- getYield(sim, ...)
+    y2 <- getYield(sim2, ...)
+    y_total <- rowSums(y)
+    y <- y[, (as.character(dimnames(y)[[2]]) %in% species) & colSums(y) > 0,
+           drop = FALSE]
+    y2_total <- rowSums(y2)
+    y2 <- y2[, (as.character(dimnames(y2)[[2]]) %in% species),
+             drop = FALSE]
+    if (total) {
+      # Include total
+      y <- cbind(y, Total = y_total)
+      y2 <- cbind(y2, Total = y2_total)
+    }
+    ym <- reshape2::melt(y, varnames = c("Year", "Species"),
+                         value.name = "Yield")
+    ym2 <- reshape2::melt(y2, varnames = c("Year", "Species"),
+                          value.name = "Yield")
+    ym$Simulation <- 1
+    ym2$Simulation <- 2
+    ym <- rbind(ym, ym2)
+    ym$Species <- factor(ym$Species, levels = species_levels)
+    ym$Simulation <- as.factor(ym$Simulation)
+    ym <- subset(ym, ym$Yield > 0)
+    p <- ggplot(ym) +
+      geom_line(aes(x = Year, y = Yield, colour = Species,
+                    linetype = Species))
+    
+    if (log) {
+      p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]")
+    } else {
+      p <- p + scale_y_continuous(name = "Yield [g/year]")
+    }
+    p <- p + facet_wrap(~ Simulation)
+    return(p)
+  }
+}
+
+#' Plot the total yield of species through time with plotly
+#' @inherit plotYield params return description details seealso
+#' @export
+#' @family plotting functions
+plotlyYield <- function(sim, sim2,
+                        species = dimnames(sim@n)$sp,
+                        total = FALSE, log = TRUE,
+                        highlight = NULL, ...) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotYield", argg))
 }
 
 
@@ -521,9 +530,15 @@ plotYieldGear <- function(sim,
 plotSpectra <- function(object, species = NULL,
                         time_range,
                         min_w, ylim = c(NA, NA),
-                        power = 1, biomass = TRUE, print_it = TRUE,
+                        power = 1, biomass = TRUE, 
                         total = FALSE, plankton = TRUE, benthos = TRUE, algae = TRUE,
-                        background = TRUE, ...) {
+                        background = TRUE, highlight = NULL, ...) {
+  
+  # to deal with old-type biomass argument
+  if (missing(power)) {
+    power <- as.numeric(biomass)
+  }
+  
     if (is(object, "MizerSim")) {
         if (missing(time_range)){
             time_range  <- max(as.numeric(dimnames(object@n)$time))
@@ -531,10 +546,7 @@ plotSpectra <- function(object, species = NULL,
         if (missing(min_w)){
             min_w <- min(object@params@w) / 100
         }
-        # to deal with old-type biomass argument
-        if (missing(power)) {
-            power <- as.numeric(biomass)
-        }
+
         time_elements <- get_time_elements(object,time_range)
         n <- apply(object@n[time_elements, , ,drop = FALSE], c(2, 3), mean)
         n_pp <- apply(object@n_pp[time_elements,,drop = FALSE], 2, mean)
@@ -544,9 +556,9 @@ plotSpectra <- function(object, species = NULL,
         
         ps <- plot_spectra(object@params, n = n, n_pp = n_pp, n_bb = n_bb, n_aa = n_aa,
                            species = species, min_w = min_w, ylim = ylim,
-                           power = power, print_it = print_it,
+                           power = power, 
                            total = total, plankton = plankton, benthos = benthos, algae = algae,
-                           background = background)
+                           background = background, highlight = highlight)
         return(ps)
     } else {
         if (missing(power)) {
@@ -560,17 +572,17 @@ plotSpectra <- function(object, species = NULL,
                            n_bb = object@initial_n_bb,
                            n_aa = object@initial_n_aa,
                            species = species, min_w = min_w, ylim = ylim,
-                           power = power, print_it = print_it,
+                           power = power, 
                            total = total, plankton = plankton, benthos = benthos, algae = algae,
-                           background = background)
+                           background = background, highlight = highlight)
         return(ps)
     }
 }
 
 
 plot_spectra <- function(params, n, n_pp, n_bb, n_aa,
-                         species, min_w, ylim, power, print_it,
-                         total, plankton, benthos, algae, background) {
+                         species, min_w, ylim, power, 
+                         total, plankton, benthos, algae, background, highlight) {
     if (total) {
         # Calculate total community abundance
         fish_idx <- (length(params@w_full) - length(params@w) + 1):
@@ -687,15 +699,38 @@ plot_spectra <- function(params, n, n_pp, n_bb, n_aa,
             geom_line(aes(group = Species), colour = "grey",
                       data = plot_back)
     }
-    if ( (length(species) + plankton + benthos + total) > 13) {
-        p <- p + geom_line(aes(group = Species))
-    } else {
-        p <- p + geom_line(aes(colour = Species, linetype = Species))
-    }
-    if (print_it)
-        print(p)
+#    if ( (length(species) + plankton + benthos + total) > 13) {
+#        p <- p + geom_line(aes(group = Species))
+#    } else {
+#@@        p <- p + geom_line(aes(colour = Species, linetype = Species))
+#    }
+ #   if (print_it)
+ #       print(p)
+    
+    linesize <- rep(0.8, length(params@linetype))
+    names(linesize) <- names(params@linetype)
+    linesize[highlight] <- 1.6
+    p <- p + scale_size_manual(values = linesize) + 
+      geom_line(aes(colour = Species, linetype = Species, size = Species))    
+
     return(p)
 }
+
+#' Plotly plot of the abundance spectra
+#' @inherit plotSpectra params return description details seealso
+#' @export
+#' @family plotting functions
+plotlySpectra <- function(object, species = NULL,
+                          time_range,
+                          wlim = c(NA, NA), ylim = c(NA, NA),
+                          power = 1, biomass = TRUE,
+                          total = FALSE, plankton = TRUE, benthos = TRUE, algae = TRUE,
+                          background = TRUE,
+                          highlight = NULL, ...) {
+  argg <- as.list(environment())
+  ggplotly(do.call("plotSpectra", argg))
+}
+
 
 
 #' Plot the feeding level of species by size
@@ -1212,23 +1247,23 @@ plotPPMR<-function(object=object, grid=T, observed=FALSE, prey=dimnames(object@d
 #' }
 setMethod("plot", signature(x = "MizerSim", y = "missing"),
           function(x, ...) {
-              p1 <- plotFeedingLevel(x, print_it = FALSE, ...)
-              p2 <- plotSpectra(x, print_it = FALSE, ...)
-              p3 <- plotBiomass(x, y_ticks = 3, print_it = FALSE, ...)
-              p4 <- plotM2(x, print_it = FALSE, ...)
-              p5 <- plotFMort(x, print_it = FALSE, ...)
-              grid::grid.newpage()
-              glayout <- grid::grid.layout(3, 2) # widths and heights arguments
-              vp <- grid::viewport(layout = glayout)
-              grid::pushViewport(vp)
-              vplayout <- function(x, y)
-                  grid::viewport(layout.pos.row = x, layout.pos.col = y)
-              print(p1 + theme(legend.position = "none"), vp = vplayout(1, 1))
-              print(p3 + theme(legend.position = "none"), vp = vplayout(1, 2))
-              print(p4 + theme(legend.position = "none"), vp = vplayout(2, 1))
-              print(p5 + theme(legend.position = "none"), vp = vplayout(2, 2))
-              print(p2 + theme(legend.position = "right",
-                               legend.key.size = unit(0.1, "cm")),
-                    vp = vplayout(3, 1:2))
+            p1 <- plotFeedingLevel(x, ...)
+            p2 <- plotSpectra(x, ...)
+            p3 <- plotBiomass(x, y_ticks = 3, ...)
+            p4 <- plotM2(x, ...)
+            p5 <- plotFMort(x, ...)
+            grid::grid.newpage()
+            glayout <- grid::grid.layout(3, 2) # widths and heights arguments
+            vp <- grid::viewport(layout = glayout)
+            grid::pushViewport(vp)
+            vplayout <- function(x, y)
+              grid::viewport(layout.pos.row = x, layout.pos.col = y)
+            print(p1 + theme(legend.position = "none"), vp = vplayout(1, 1))
+            print(p3 + theme(legend.position = "none"), vp = vplayout(1, 2))
+            print(p4 + theme(legend.position = "none"), vp = vplayout(2, 1))
+            print(p5 + theme(legend.position = "none"), vp = vplayout(2, 2))
+            print(p2 + theme(legend.position = "right",
+                             legend.key.size = unit(0.1, "cm")),
+                  vp = vplayout(3, 1:2))
           }
 )
