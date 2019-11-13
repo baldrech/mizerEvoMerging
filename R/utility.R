@@ -117,9 +117,15 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
   sim@n_bb <- benthos
   
   # need to update the scalar matrices too
-  time_temperature_dt <- rep(temperature, length = sim@params@species_params$timeMax[1], each = 1/dt) # works if t_max = length(temperature)
-  x_axis <- seq(length.out=sim@params@species_params$timeMax[1],from =1)   # = time vector
+  # time_temperature_dt <- rep(temperature, length = sim@params@species_params$timeMax[1], each = 1/dt) # works if t_max = length(temperature)
+  # x_axis <- seq(length.out=sim@params@species_params$timeMax[1],from =1)   # = time vector
+  
+  time_temperature_dt <- temperature # we already give a year*dt temperature vector
+  x_axis <- seq(length.out=(timeMax),from =1)   # = time vector
+
   temperature_dt <- matrix(time_temperature_dt, dimnames = list(x_axis, "temperature"))
+  
+  
   # arrays with scalar values for all time, species and size
   metTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
   matTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
@@ -157,8 +163,9 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
   sim@matTempScalar <- matTempScalar
   sim@morTempScalar <- morTempScalar
   sim@intTempScalar <- intTempScalar
+  sim@temperature <- temperature_dt
   
-  rm(list = "biom", "phyto", "effort")
+  rm(list = "biom", "phyto", "effort", "metTempScalar","matTempScalar","morTempScalar","intTempScalar")
   gc()
   
   return(sim)  
