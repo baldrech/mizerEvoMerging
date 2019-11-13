@@ -24,11 +24,11 @@ utils::globalVariables(c("time", "value", "Species", "w", "gear", "Age",
 #' @return A function that can be used as the break argument in calls to
 #'   scale_y_continuous() or scale_x_continuous()
 log_breaks <- function(n = 6){
-    n <- max(1, n)  # Because n=0 could lead to R crash
-    function(x) {
-        grDevices::axisTicks(log10(range(x, na.rm = TRUE)),
-                             log = TRUE, nint = n)
-    }
+  n <- max(1, n)  # Because n=0 could lead to R crash
+  function(x) {
+    grDevices::axisTicks(log10(range(x, na.rm = TRUE)),
+                         log = TRUE, nint = n)
+  }
 }
 
 
@@ -42,22 +42,22 @@ log_breaks <- function(n = 6){
 #' @return ggplot2 object
 #' @export
 display_frames <- function(f1, f2, params, y_ticks = 6) {
-    var_names <- names(f1)
-    if (!(length(var_names) == 3)) {
-        stop("A frame needs to have three variables.")
-    }
-    if (!all(names(f2) == var_names)) {
-        stop("Both frames need to have the same variable names.")
-    }
-    f <- rbind(cbind(f1, Simulation = 1), cbind(f2, Simulation = 2))
-    p <- ggplot(f, aes_string(x = names(f)[1], y = names(f)[3],
-                              colour = names(f)[2], linetype = names(f)[2])) +
-        scale_y_log10(breaks = log_breaks(n = y_ticks), labels = prettyNum) +
-        geom_line() +
-        facet_wrap(~ Simulation) +
-        scale_colour_manual(values = params@linecolour) +
-        scale_linetype_manual(values = params@linetype)
-    return(p)
+  var_names <- names(f1)
+  if (!(length(var_names) == 3)) {
+    stop("A frame needs to have three variables.")
+  }
+  if (!all(names(f2) == var_names)) {
+    stop("Both frames need to have the same variable names.")
+  }
+  f <- rbind(cbind(f1, Simulation = 1), cbind(f2, Simulation = 2))
+  p <- ggplot(f, aes_string(x = names(f)[1], y = names(f)[3],
+                            colour = names(f)[2], linetype = names(f)[2])) +
+    scale_y_log10(breaks = log_breaks(n = y_ticks), labels = prettyNum) +
+    geom_line() +
+    facet_wrap(~ Simulation) +
+    scale_colour_manual(values = params@linecolour) +
+    scale_linetype_manual(values = params@linetype)
+  return(p)
 }
 
 
@@ -84,36 +84,36 @@ display_frames <- function(f1, f2, params, y_ticks = 6) {
 #' @export
 #' @seealso \code{\link{getSSB}}
 getSSBFrame <- function(sim,
-            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
-            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
-            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
-            ylim = c(NA, NA), total = FALSE){
-    b <- getSSB(sim)
-    if (start_time >= end_time) {
-        stop("start_time must be less than end_time")
-    }
-    # Select time range
-    b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
-               (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
-    b_total <- rowSums(b)
-    # Include total
-    if (total) {
-        b <- cbind(b, Total = b_total)
-        species <- c("Total", species)
-    }
-    bm <- reshape2::melt(b)
-    # Implement ylim and a minimal cutoff
-    min_value <- 1e-20
-    bm <- bm[bm$value >= min_value &
-                 (is.na(ylim[1]) | bm$value >= ylim[1]) &
-                 (is.na(ylim[2]) | bm$value <= ylim[1]), ]
-    names(bm) <- c("Year", "Species", "SSB")
-    # Force Species column to be a factor (otherwise if numeric labels are
-    # used they may be interpreted as integer and hence continuous)
-    bm$Species <- as.factor(bm$Species)
-    # Select species
-    bm <- bm[bm$Species %in% species, ]
-    return(bm)
+                        species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                        start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                        end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                        ylim = c(NA, NA), total = FALSE){
+  b <- getSSB(sim)
+  if (start_time >= end_time) {
+    stop("start_time must be less than end_time")
+  }
+  # Select time range
+  b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
+           (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
+  b_total <- rowSums(b)
+  # Include total
+  if (total) {
+    b <- cbind(b, Total = b_total)
+    species <- c("Total", species)
+  }
+  bm <- reshape2::melt(b)
+  # Implement ylim and a minimal cutoff
+  min_value <- 1e-20
+  bm <- bm[bm$value >= min_value &
+             (is.na(ylim[1]) | bm$value >= ylim[1]) &
+             (is.na(ylim[2]) | bm$value <= ylim[1]), ]
+  names(bm) <- c("Year", "Species", "SSB")
+  # Force Species column to be a factor (otherwise if numeric labels are
+  # used they may be interpreted as integer and hence continuous)
+  bm$Species <- as.factor(bm$Species)
+  # Select species
+  bm <- bm[bm$Species %in% species, ]
+  return(bm)
 }
 
 
@@ -142,37 +142,37 @@ getSSBFrame <- function(sim,
 #' @export
 #' @seealso \code{\link{getBiomass}}
 getBiomassFrame <- function(sim,
-            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
-            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
-            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
-            ylim = c(NA, NA), total = FALSE, ...){
-    b <- getBiomass(sim, ...)
-    if (start_time >= end_time) {
-        stop("start_time must be less than end_time")
-    }
-    # Select time range
-    b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
-               (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
-    b_total <- rowSums(b)
-    # Include total
-    if (total) {
-        b <- cbind(b, Total = b_total)
-        species <- c("Total", species)
-    }
-    bm <- reshape2::melt(b)
-    # Implement ylim and a minimal cutoff
-    min_value <- 1e-20
-    bm <- bm[bm$value >= min_value &
-                 (is.na(ylim[1]) | bm$value >= ylim[1]) &
-                 (is.na(ylim[2]) | bm$value <= ylim[1]), ]
-    names(bm) <- c("Year", "Species", "Biomass")
-    # Force Species column to be a factor (otherwise if numeric labels are
-    # used they may be interpreted as integer and hence continuous)
-    bm$Species <- as.factor(bm$Species)
-    # Select species
-    bm <- bm[bm$Species %in% species, ]
-
-    return(bm)
+                            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                            ylim = c(NA, NA), total = FALSE, ...){
+  b <- getBiomass(sim, ...)
+  if (start_time >= end_time) {
+    stop("start_time must be less than end_time")
+  }
+  # Select time range
+  b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
+           (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
+  b_total <- rowSums(b)
+  # Include total
+  if (total) {
+    b <- cbind(b, Total = b_total)
+    species <- c("Total", species)
+  }
+  bm <- reshape2::melt(b)
+  # Implement ylim and a minimal cutoff
+  min_value <- 1e-20
+  bm <- bm[bm$value >= min_value &
+             (is.na(ylim[1]) | bm$value >= ylim[1]) &
+             (is.na(ylim[2]) | bm$value <= ylim[1]), ]
+  names(bm) <- c("Year", "Species", "Biomass")
+  # Force Species column to be a factor (otherwise if numeric labels are
+  # used they may be interpreted as integer and hence continuous)
+  bm$Species <- as.factor(bm$Species)
+  # Select species
+  bm <- bm[bm$Species %in% species, ]
+  
+  return(bm)
 }
 
 
@@ -219,63 +219,63 @@ getBiomassFrame <- function(sim,
 #' plotBiomass(sim, y_ticks = 3)
 #' }
 plotBiomass <- function(sim,
-            species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
-            start_time = as.numeric(dimnames(sim@n)[[1]][1]),
-            end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
-            y_ticks = 6, print_it = TRUE,
-            ylim = c(NA, NA),
-            total = FALSE, background = TRUE, returnData = FALSE, ...){
-    b <- getBiomass(sim, ...)
-    if (start_time >= end_time) {
-        stop("start_time must be less than end_time")
-    }
-    # Select time range
-    b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
-               (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
-    b_total <- rowSums(b)
-    # Include total
-    if (total) {
-        b <- cbind(b, Total = b_total)
-        species <- c("Total", species)
-    }
-    names(dimnames(b)) <- c("time", "Species")
-    bm <- reshape2::melt(b)
-    # Force Species column to be a factor (otherwise if numeric labels are
-    # used they may be interpreted as integer and hence continuous)
-    bm$Species <- as.factor(bm$Species)
-    # Implement ylim and a minimal cutoff
-    min_value <- 1e-20
-    bm <- bm[bm$value >= min_value &
-                 (is.na(ylim[1]) | bm$value >= ylim[1]) &
-                 (is.na(ylim[2]) | bm$value <= ylim[1]), ]
-    # Select species
-    spec_bm <- bm[bm$Species %in% species, ]
-    x_label <- "Year"
-    y_label <- "Biomass [g]"
-    p <- ggplot(spec_bm, aes(x = time, y = value)) +
-        scale_y_continuous(trans = "log10", breaks = log_breaks(n = y_ticks),
-                           labels = prettyNum, name = y_label) +
-        scale_x_continuous(name = x_label) +
-        scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-
-    if (background) {
-        # Add background species in light grey
-        back_sp <- dimnames(sim@n)$sp[is.na(sim@params@A)]
-        back_bm <- bm[bm$Species %in% back_sp, ]
-        p <- p + geom_line(aes(group = Species), data = back_bm,
-                           colour = "lightgrey")
-    }
-
-    if ( (length(species) + total) > 12) {
-        p <- p + geom_line(aes(group = Species))
-    } else {
-        p <- p +
-            geom_line(aes(colour = Species, linetype = Species))
-    }
-    
-    if(returnData) return(p) else if (print_it) return(p)
-
+                        species = dimnames(sim@n)$sp[!is.na(sim@params@A)],
+                        start_time = as.numeric(dimnames(sim@n)[[1]][1]),
+                        end_time = as.numeric(dimnames(sim@n)[[1]][dim(sim@n)[1]]),
+                        y_ticks = 6, print_it = TRUE,
+                        ylim = c(NA, NA),
+                        total = FALSE, background = TRUE, returnData = FALSE, ...){
+  b <- getBiomass(sim, ...)
+  if (start_time >= end_time) {
+    stop("start_time must be less than end_time")
+  }
+  # Select time range
+  b <- b[(as.numeric(dimnames(b)[[1]]) >= start_time) &
+           (as.numeric(dimnames(b)[[1]]) <= end_time), , drop = FALSE]
+  b_total <- rowSums(b)
+  # Include total
+  if (total) {
+    b <- cbind(b, Total = b_total)
+    species <- c("Total", species)
+  }
+  names(dimnames(b)) <- c("time", "Species")
+  bm <- reshape2::melt(b)
+  # Force Species column to be a factor (otherwise if numeric labels are
+  # used they may be interpreted as integer and hence continuous)
+  bm$Species <- as.factor(bm$Species)
+  # Implement ylim and a minimal cutoff
+  min_value <- 1e-20
+  bm <- bm[bm$value >= min_value &
+             (is.na(ylim[1]) | bm$value >= ylim[1]) &
+             (is.na(ylim[2]) | bm$value <= ylim[1]), ]
+  # Select species
+  spec_bm <- bm[bm$Species %in% species, ]
+  x_label <- "Year"
+  y_label <- "Biomass [g]"
+  p <- ggplot(spec_bm, aes(x = time, y = value)) +
+    scale_y_continuous(trans = "log10", breaks = log_breaks(n = y_ticks),
+                       labels = prettyNum, name = y_label) +
+    scale_x_continuous(name = x_label) +
+    scale_colour_manual(values = sim@params@linecolour) +
+    scale_linetype_manual(values = sim@params@linetype)
+  
+  if (background) {
+    # Add background species in light grey
+    back_sp <- dimnames(sim@n)$sp[is.na(sim@params@A)]
+    back_bm <- bm[bm$Species %in% back_sp, ]
+    p <- p + geom_line(aes(group = Species), data = back_bm,
+                       colour = "lightgrey")
+  }
+  
+  if ( (length(species) + total) > 12) {
+    p <- p + geom_line(aes(group = Species))
+  } else {
+    p <- p +
+      geom_line(aes(colour = Species, linetype = Species))
+  }
+  
+  if(returnData) return(p) else if (print_it) return(p)
+  
 }
 
 
@@ -317,87 +317,87 @@ plotBiomass <- function(sim,
 plotYield <- function(sim, sim2,
                       species = dimnames(sim@n)$sp,
                       print_it = TRUE, total = FALSE, log = TRUE, ...){
-    if (missing(sim2)) {
-        y <- getYield(sim, ...)
-        y_total <- rowSums(y)
-        y <- y[, (as.character(dimnames(y)[[2]]) %in% species),
-               drop = FALSE]
-        if (total) {
-            # Include total
-            y <- cbind(y, "Total" = y_total)
-        }
-        ym <- reshape2::melt(y, varnames = c("Year", "Species"),
-                             value.name = "Yield")
-        ym$Species <- as.factor(ym$Species)
-        ym <- subset(ym, ym$Yield > 0)
-        if (nlevels(ym$Species) > 12) {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, group = Species))
-        } else {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield,
-                              colour = Species, linetype = Species))
-        }
-        if (log) {
-            p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]",
-                                        breaks = log_breaks(),
-                                        labels = prettyNum)
-        } else {
-            p <- p + scale_y_continuous(name = "Yield [g/year]")
-        }
-        p <- p +
-            scale_colour_manual(values = sim@params@linecolour) +
-            scale_linetype_manual(values = sim@params@linetype)
-        if (print_it) {
-            print(p)
-        }
-        return(p)
-    } else {
-        if (!all(dimnames(sim@n)$time == dimnames(sim2@n)$time)) {
-            stop("The two simulations do not have the same times")
-        }
-        y <- getYield(sim, ...)
-        y2 <- getYield(sim2, ...)
-        y_total <- rowSums(y)
-        y <- y[, (as.character(dimnames(y)[[2]]) %in% species) & colSums(y) > 0,
-               drop = FALSE]
-        y2_total <- rowSums(y2)
-        y2 <- y2[, (as.character(dimnames(y2)[[2]]) %in% species),
-                 drop = FALSE]
-        if (total) {
-            # Include total
-            y <- cbind(y, Total = y_total)
-            y2 <- cbind(y2, Total = y2_total)
-        }
-        ym <- reshape2::melt(y, varnames = c("Year", "Species"),
-                             value.name = "Yield")
-        ym2 <- reshape2::melt(y2, varnames = c("Year", "Species"),
-                              value.name = "Yield")
-        ym$Simulation <- 1
-        ym2$Simulation <- 2
-        ym <- rbind(ym, ym2)
-        ym$Species <- as.factor(ym$Species)
-        ym$Simulation <- as.factor(ym$Simulation)
-        ym <- subset(ym, ym$Yield > 0)
-        if (nlevels(ym$Species) > 12) {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, group = Species))
-        } else {
-            p <- ggplot(ym) +
-                geom_line(aes(x = Year, y = Yield, colour = Species,
-                              linetype = Species))
-        }
-        if (log) {
-            p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]")
-        } else {
-            p <- p + scale_y_continuous(name = "Yield [g/year]")
-        }
-        p <- p + facet_wrap(~ Simulation)
-        if (print_it) {
-            print(p)
-        }
-        return(p)
+  if (missing(sim2)) {
+    y <- getYield(sim, ...)
+    y_total <- rowSums(y)
+    y <- y[, (as.character(dimnames(y)[[2]]) %in% species),
+           drop = FALSE]
+    if (total) {
+      # Include total
+      y <- cbind(y, "Total" = y_total)
     }
+    ym <- reshape2::melt(y, varnames = c("Year", "Species"),
+                         value.name = "Yield")
+    ym$Species <- as.factor(ym$Species)
+    ym <- subset(ym, ym$Yield > 0)
+    if (nlevels(ym$Species) > 12) {
+      p <- ggplot(ym) +
+        geom_line(aes(x = Year, y = Yield, group = Species))
+    } else {
+      p <- ggplot(ym) +
+        geom_line(aes(x = Year, y = Yield,
+                      colour = Species, linetype = Species))
+    }
+    if (log) {
+      p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]",
+                                  breaks = log_breaks(),
+                                  labels = prettyNum)
+    } else {
+      p <- p + scale_y_continuous(name = "Yield [g/year]")
+    }
+    p <- p +
+      scale_colour_manual(values = sim@params@linecolour) +
+      scale_linetype_manual(values = sim@params@linetype)
+    if (print_it) {
+      print(p)
+    }
+    return(p)
+  } else {
+    if (!all(dimnames(sim@n)$time == dimnames(sim2@n)$time)) {
+      stop("The two simulations do not have the same times")
+    }
+    y <- getYield(sim, ...)
+    y2 <- getYield(sim2, ...)
+    y_total <- rowSums(y)
+    y <- y[, (as.character(dimnames(y)[[2]]) %in% species) & colSums(y) > 0,
+           drop = FALSE]
+    y2_total <- rowSums(y2)
+    y2 <- y2[, (as.character(dimnames(y2)[[2]]) %in% species),
+             drop = FALSE]
+    if (total) {
+      # Include total
+      y <- cbind(y, Total = y_total)
+      y2 <- cbind(y2, Total = y2_total)
+    }
+    ym <- reshape2::melt(y, varnames = c("Year", "Species"),
+                         value.name = "Yield")
+    ym2 <- reshape2::melt(y2, varnames = c("Year", "Species"),
+                          value.name = "Yield")
+    ym$Simulation <- 1
+    ym2$Simulation <- 2
+    ym <- rbind(ym, ym2)
+    ym$Species <- as.factor(ym$Species)
+    ym$Simulation <- as.factor(ym$Simulation)
+    ym <- subset(ym, ym$Yield > 0)
+    if (nlevels(ym$Species) > 12) {
+      p <- ggplot(ym) +
+        geom_line(aes(x = Year, y = Yield, group = Species))
+    } else {
+      p <- ggplot(ym) +
+        geom_line(aes(x = Year, y = Yield, colour = Species,
+                      linetype = Species))
+    }
+    if (log) {
+      p <- p + scale_y_continuous(trans = "log10", name = "Yield [g/year]")
+    } else {
+      p <- p + scale_y_continuous(name = "Yield [g/year]")
+    }
+    p <- p + facet_wrap(~ Simulation)
+    if (print_it) {
+      print(p)
+    }
+    return(p)
+  }
 }
 
 
@@ -435,30 +435,30 @@ plotYield <- function(sim, sim2,
 plotYieldGear <- function(sim,
                           species = dimnames(sim@n)$sp,
                           print_it = TRUE, total = FALSE, ...){
-    y <- getYieldGear(sim, ...)
-    y_total <- rowSums(y, dims = 2)
-    y <- y[, , dimnames(y)$sp %in% species, drop = FALSE]
-    names(dimnames(y))[names(dimnames(y)) == "sp"] <- "Species"
-    ym <- reshape2::melt(y)
-    if (total) {
-        yt <- reshape2::melt(y_total)
-        yt$Species <- "Total"
-        ym <- rbind(ym, yt)
-    }
-    ym <- subset(ym, ym$value > 0)
-    if (length(species) > 12) {
-        p <- ggplot(ym) + geom_line(aes(x = time, y = value, group = Species))
-    } else {
-        p <- ggplot(ym) +
-            geom_line(aes(x = time, y = value, colour = Species, linetype = gear))
-    }
-    p <- p + scale_y_continuous(trans = "log10", name = "Yield [g]") +
-        scale_x_continuous(name = "Year") +
-        scale_colour_manual(values = sim@params@linecolour)
-    if (print_it) {
-        print(p)
-    }
-    return(p)
+  y <- getYieldGear(sim, ...)
+  y_total <- rowSums(y, dims = 2)
+  y <- y[, , dimnames(y)$sp %in% species, drop = FALSE]
+  names(dimnames(y))[names(dimnames(y)) == "sp"] <- "Species"
+  ym <- reshape2::melt(y)
+  if (total) {
+    yt <- reshape2::melt(y_total)
+    yt$Species <- "Total"
+    ym <- rbind(ym, yt)
+  }
+  ym <- subset(ym, ym$value > 0)
+  if (length(species) > 12) {
+    p <- ggplot(ym) + geom_line(aes(x = time, y = value, group = Species))
+  } else {
+    p <- ggplot(ym) +
+      geom_line(aes(x = time, y = value, colour = Species, linetype = gear))
+  }
+  p <- p + scale_y_continuous(trans = "log10", name = "Yield [g]") +
+    scale_x_continuous(name = "Year") +
+    scale_colour_manual(values = sim@params@linecolour)
+  if (print_it) {
+    print(p)
+  }
+  return(p)
 }
 
 
@@ -523,142 +523,142 @@ plotSpectra <- function(object, species = NULL,
                         power = 1, biomass = TRUE, print_it = TRUE,
                         total = FALSE, plankton = TRUE,
                         background = TRUE, ...) {
-    if (is(object, "MizerSim")) {
-        if (missing(time_range)){
-            time_range  <- max(as.numeric(dimnames(object@n)$time))
-        }
-        if (missing(min_w)){
-            min_w <- min(object@params@w) / 100
-        }
-        # to deal with old-type biomass argument
-        if (missing(power)) {
-            power <- as.numeric(biomass)
-        }
-        time_elements <- get_time_elements(object,time_range)
-        n <- apply(object@n[time_elements, , ,drop = FALSE], c(2, 3), mean)
-        n_pp <- apply(object@n_pp[time_elements,,drop = FALSE], 2, mean)
-        ##AAsp##
-        #n_bb <- apply(object@n_bb[time_elements,,drop = FALSE], 2, mean)
-        
-        ps <- plot_spectra(object@params, n = n, n_pp = n_pp, 
-                           species = species, min_w = min_w, ylim = ylim,
-                           power = power, print_it = print_it,
-                           total = total, plankton = plankton, 
-                           background = background)
-        return(ps)
-    } else {
-        if (missing(power)) {
-            power <- as.numeric(biomass)
-        }
-        if (missing(min_w)) {
-            min_w <- min(object@w) / 100
-        }
-        ps <- plot_spectra(object, n = object@initial_n,
-                           n_pp = object@initial_n_pp,
-                           species = species, min_w = min_w, ylim = ylim,
-                           power = power, print_it = print_it,
-                           total = total, plankton = plankton, 
-                           background = background)
-        return(ps)
+  if (is(object, "MizerSim")) {
+    if (missing(time_range)){
+      time_range  <- max(as.numeric(dimnames(object@n)$time))
     }
+    if (missing(min_w)){
+      min_w <- min(object@params@w) / 100
+    }
+    # to deal with old-type biomass argument
+    if (missing(power)) {
+      power <- as.numeric(biomass)
+    }
+    time_elements <- get_time_elements(object,time_range)
+    n <- apply(object@n[time_elements, , ,drop = FALSE], c(2, 3), mean)
+    n_pp <- apply(object@n_pp[time_elements,,drop = FALSE], 2, mean)
+    ##AAsp##
+    #n_bb <- apply(object@n_bb[time_elements,,drop = FALSE], 2, mean)
+    
+    ps <- plot_spectra(object@params, n = n, n_pp = n_pp, 
+                       species = species, min_w = min_w, ylim = ylim,
+                       power = power, print_it = print_it,
+                       total = total, plankton = plankton, 
+                       background = background)
+    return(ps)
+  } else {
+    if (missing(power)) {
+      power <- as.numeric(biomass)
+    }
+    if (missing(min_w)) {
+      min_w <- min(object@w) / 100
+    }
+    ps <- plot_spectra(object, n = object@initial_n,
+                       n_pp = object@initial_n_pp,
+                       species = species, min_w = min_w, ylim = ylim,
+                       power = power, print_it = print_it,
+                       total = total, plankton = plankton, 
+                       background = background)
+    return(ps)
+  }
 }
 
 
 plot_spectra <- function(params, n, n_pp, 
                          species, min_w, ylim, power, print_it,
                          total, plankton, background) {
-    if (total) {
-        # Calculate total community abundance
-        fish_idx <- (length(params@w_full) - length(params@w) + 1):
-            length(params@w_full)
-        total_n <- n_pp
-        total_n[fish_idx] <- total_n[fish_idx] + colSums(n)
-        total_n <- total_n * params@w_full^power
+  if (total) {
+    # Calculate total community abundance
+    fish_idx <- (length(params@w_full) - length(params@w) + 1):
+      length(params@w_full)
+    total_n <- n_pp
+    total_n[fish_idx] <- total_n[fish_idx] + colSums(n)
+    total_n <- total_n * params@w_full^power
+  }
+  # Set species if missing to list of all non-background species
+  if (is.null(species)) {
+    species <- dimnames(params@initial_n)$sp[!is.na(params@A)]
+  }
+  # Deal with power argument
+  if (power %in% c(0, 1, 2)) {
+    y_label <- c("Number density [1/g]", "Biomass density",
+                 "Biomass density [g]")[power + 1]
+  } else {
+    y_label <- paste0("Number density * w^", power)
+  }
+  n <- sweep(n, 2, params@w^power, "*")
+  # Select only the desired species and background species
+  spec_n <- n[as.character(dimnames(n)[[1]]) %in% species, , drop = FALSE]
+  # Make data.frame for plot
+  plot_dat <- data.frame(value = c(spec_n),
+                         Species = as.factor(dimnames(spec_n)[[1]]),
+                         w = rep(params@w,
+                                 each = dim(spec_n)[[1]]))
+  if (plankton) {
+    # Decide where to cut off plankton
+    max_w <- min(params@species_params$w_mat)
+    if (is.na(max_w)) {
+      max_w <- Inf
     }
-    # Set species if missing to list of all non-background species
-    if (is.null(species)) {
-        species <- dimnames(params@initial_n)$sp[!is.na(params@A)]
-    }
-    # Deal with power argument
-    if (power %in% c(0, 1, 2)) {
-        y_label <- c("Number density [1/g]", "Biomass density",
-                    "Biomass density [g]")[power + 1]
-    } else {
-        y_label <- paste0("Number density * w^", power)
-    }
-    n <- sweep(n, 2, params@w^power, "*")
-    # Select only the desired species and background species
-    spec_n <- n[as.character(dimnames(n)[[1]]) %in% species, , drop = FALSE]
-    # Make data.frame for plot
-    plot_dat <- data.frame(value = c(spec_n),
-                           Species = as.factor(dimnames(spec_n)[[1]]),
-                           w = rep(params@w,
-                                   each = dim(spec_n)[[1]]))
-    if (plankton) {
-        # Decide where to cut off plankton
-        max_w <- min(params@species_params$w_mat)
-        if (is.na(max_w)) {
-            max_w <- Inf
-        }
-        plankton_sel <- params@w_full >= min_w &
-            params@w_full < max_w
-        w_plankton <- params@w_full[plankton_sel]
-        plank_n <- n_pp[plankton_sel] * w_plankton^power
-        plot_dat <- rbind(plot_dat,
-                          data.frame(value = c(plank_n),
-                                     Species = "Plankton",
-                                     w = w_plankton))
-    }
-    if (total) {
-        plot_dat <- rbind(plot_dat,
-                          data.frame(value = c(total_n),
-                                     Species = "Total",
-                                     w = params@w_full))
-    }
+    plankton_sel <- params@w_full >= min_w &
+      params@w_full < max_w
+    w_plankton <- params@w_full[plankton_sel]
+    plank_n <- n_pp[plankton_sel] * w_plankton^power
+    plot_dat <- rbind(plot_dat,
+                      data.frame(value = c(plank_n),
+                                 Species = "Plankton",
+                                 w = w_plankton))
+  }
+  if (total) {
+    plot_dat <- rbind(plot_dat,
+                      data.frame(value = c(total_n),
+                                 Species = "Total",
+                                 w = params@w_full))
+  }
+  # lop off 0s and apply min_w
+  plot_dat <- plot_dat[(plot_dat$value > 0) & (plot_dat$w >= min_w), ]
+  # Impose ylim
+  if (!is.na(ylim[1])) {
+    plot_dat <- plot_dat[plot_dat$value < ylim[1], ]
+  }
+  if (is.na(ylim[2])) {
+    ylim[2] <- 1e-20
+  }
+  plot_dat <- plot_dat[plot_dat$value > ylim[2], ]
+  # Create plot
+  p <- ggplot(plot_dat, aes(x = w, y = value)) +
+    scale_x_continuous(name = "Size [g]", trans = "log10",
+                       breaks = log_breaks()) +
+    scale_y_continuous(name = y_label, trans = "log10",
+                       breaks = log_breaks()) +
+    scale_colour_manual(values = params@linecolour) +
+    scale_linetype_manual(values = params@linetype)
+  if (background) {
+    back_n <- n[is.na(params@A), , drop = FALSE]
+    plot_back <- data.frame(value = c(back_n),
+                            Species = as.factor(dimnames(back_n)[[1]]),
+                            w = rep(params@w,
+                                    each = dim(back_n)[[1]]))
     # lop off 0s and apply min_w
-    plot_dat <- plot_dat[(plot_dat$value > 0) & (plot_dat$w >= min_w), ]
+    plot_back <- plot_back[(plot_back$value > 0) & (plot_back$w >= min_w), ]
     # Impose ylim
     if (!is.na(ylim[1])) {
-        plot_dat <- plot_dat[plot_dat$value < ylim[1], ]
+      plot_back <- plot_back[plot_back$value < ylim[1], ]
     }
-    if (is.na(ylim[2])) {
-        ylim[2] <- 1e-20
-    }
-    plot_dat <- plot_dat[plot_dat$value > ylim[2], ]
-    # Create plot
-    p <- ggplot(plot_dat, aes(x = w, y = value)) +
-        scale_x_continuous(name = "Size [g]", trans = "log10",
-                           breaks = log_breaks()) +
-        scale_y_continuous(name = y_label, trans = "log10",
-                           breaks = log_breaks()) +
-        scale_colour_manual(values = params@linecolour) +
-        scale_linetype_manual(values = params@linetype)
-    if (background) {
-        back_n <- n[is.na(params@A), , drop = FALSE]
-        plot_back <- data.frame(value = c(back_n),
-                                Species = as.factor(dimnames(back_n)[[1]]),
-                                w = rep(params@w,
-                                        each = dim(back_n)[[1]]))
-        # lop off 0s and apply min_w
-        plot_back <- plot_back[(plot_back$value > 0) & (plot_back$w >= min_w), ]
-        # Impose ylim
-        if (!is.na(ylim[1])) {
-            plot_back <- plot_back[plot_back$value < ylim[1], ]
-        }
-        plot_back <- plot_back[plot_back$value > ylim[2], ]
-        # Add background species in grey
-        p <- p +
-            geom_line(aes(group = Species), colour = "grey",
-                      data = plot_back)
-    }
-    if ( (length(species) + plankton + total) > 13) {
-        p <- p + geom_line(aes(group = Species))
-    } else {
-        p <- p + geom_line(aes(colour = Species, linetype = Species))
-    }
-    if (print_it)
-        print(p)
-    return(p)
+    plot_back <- plot_back[plot_back$value > ylim[2], ]
+    # Add background species in grey
+    p <- p +
+      geom_line(aes(group = Species), colour = "grey",
+                data = plot_back)
+  }
+  if ( (length(species) + plankton + total) > 13) {
+    p <- p + geom_line(aes(group = Species))
+  } else {
+    p <- p + geom_line(aes(colour = Species, linetype = Species))
+  }
+  if (print_it)
+    print(p)
+  return(p)
 }
 
 
@@ -691,31 +691,31 @@ plot_spectra <- function(params, n, n_pp,
 #' plotFeedingLevel(sim, time_range = 10:20)
 #' }
 plotFeedingLevel <- function(sim,
-            species = dimnames(sim@n)$sp,
-            time_range = max(as.numeric(dimnames(sim@n)$time)),
-            print_it = TRUE, returnData = F, ...) {
-    feed_time <- getFeedingLevel(sim, time_range = time_range, ##AA
-                                 drop = FALSE, ...)
-    feed <- apply(feed_time, c(2, 3), mean)
-    feed <- feed[as.character(dimnames(feed)[[1]]) %in% species, ,
-                 drop = FALSE]
-    plot_dat <- data.frame(value = c(feed),
-                           Species = dimnames(feed)[[1]],
-                           w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, group = Species))
-    } else {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
-    p <- p +
-        scale_x_continuous(name = "Size [g]", trans = "log10") +
-        scale_y_continuous(name = "Feeding Level", limits = c(0, 1)) +
-        scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    
-    if (returnData) return(plot_dat) else if(print_it) return(p)
+                             species = dimnames(sim@n)$sp,
+                             time_range = max(as.numeric(dimnames(sim@n)$time)),
+                             print_it = TRUE, returnData = F, ...) {
+  feed_time <- getFeedingLevel(sim, time_range = time_range, ##AA
+                               drop = FALSE, ...)
+  feed <- apply(feed_time, c(2, 3), mean)
+  feed <- feed[as.character(dimnames(feed)[[1]]) %in% species, ,
+               drop = FALSE]
+  plot_dat <- data.frame(value = c(feed),
+                         Species = dimnames(feed)[[1]],
+                         w = rep(sim@params@w, each = length(species)))
+  if (length(species) > 12) {
+    p <- ggplot(plot_dat) +
+      geom_line(aes(x = w, y = value, group = Species))
+  } else {
+    p <- ggplot(plot_dat) +
+      geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
+  }
+  p <- p +
+    scale_x_continuous(name = "Size [g]", trans = "log10") +
+    scale_y_continuous(name = "Feeding Level", limits = c(0, 1)) +
+    scale_colour_manual(values = sim@params@linecolour) +
+    scale_linetype_manual(values = sim@params@linetype)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 
@@ -750,30 +750,30 @@ plotFeedingLevel <- function(sim,
 plotM2 <- function(sim, species = dimnames(sim@n)$sp,
                    time_range = max(as.numeric(dimnames(sim@n)$time)),
                    print_it = TRUE, ...) {
-    m2_time <- getM2(sim, time_range = time_range, intakeScalar = sim@intTempScalar[,,time_range], drop = FALSE, ...)
-    m2 <- apply(m2_time, c(2, 3), mean)
-    m2 <- m2[as.character(dimnames(m2)[[1]]) %in% species, , 
-             drop = FALSE]
-    plot_dat <- data.frame(value = c(m2),
-                           Species = dimnames(m2)[[1]],
-                           w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, group = Species))
-    } else {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
-    p <- p +
-        scale_x_continuous(name = "Size [g]", trans = "log10") +
-        scale_y_continuous(name = "Predation mortality [1/year]",
-                           limits = c(0, max(plot_dat$value))) +
-        scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
-    return(p)
+  m2_time <- getM2(sim, time_range = time_range, intakeScalar = sim@intTempScalar[,,time_range], drop = FALSE, ...)
+  m2 <- apply(m2_time, c(2, 3), mean)
+  m2 <- m2[as.character(dimnames(m2)[[1]]) %in% species, , 
+           drop = FALSE]
+  plot_dat <- data.frame(value = c(m2),
+                         Species = dimnames(m2)[[1]],
+                         w = rep(sim@params@w, each = length(species)))
+  if (length(species) > 12) {
+    p <- ggplot(plot_dat) +
+      geom_line(aes(x = w, y = value, group = Species))
+  } else {
+    p <- ggplot(plot_dat) +
+      geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
+  }
+  p <- p +
+    scale_x_continuous(name = "Size [g]", trans = "log10") +
+    scale_y_continuous(name = "Predation mortality [1/year]",
+                       limits = c(0, max(plot_dat$value))) +
+    scale_colour_manual(values = sim@params@linecolour) +
+    scale_linetype_manual(values = sim@params@linetype)
+  if (print_it) {
+    print(p)
+  }
+  return(p)
 }
 
 
@@ -809,28 +809,28 @@ plotM2 <- function(sim, species = dimnames(sim@n)$sp,
 plotFMort <- function(sim, species = dimnames(sim@n)$sp,
                       time_range = max(as.numeric(dimnames(sim@n)$time)),
                       print_it = TRUE, ...){
-    f_time <- getFMort(sim, time_range = time_range, drop = FALSE, ...)
-    f <- apply(f_time, c(2, 3), mean)
-    f <- f[as.character(dimnames(f)[[1]]) %in% species, , drop = FALSE]
-    plot_dat <- data.frame(value = c(f),
-                           Species = dimnames(f)[[1]],
-                           w = rep(sim@params@w, each = length(species)))
-    if (length(species) > 12) {
-        p <- ggplot(plot_dat) + geom_line(aes(x = w, y = value, group = Species))
-    } else {
-        p <- ggplot(plot_dat) +
-            geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
-    }
-    p <- p +
-        scale_x_continuous(name = "Size [g]", trans = "log10") +
-        scale_y_continuous(name = "Fishing mortality [1/Year]",
-                           limits = c(0, max(plot_dat$value))) +
-        scale_colour_manual(values = sim@params@linecolour) +
-        scale_linetype_manual(values = sim@params@linetype)
-    if (print_it) {
-        print(p)
-    }
-    return(p)
+  f_time <- getFMort(sim, time_range = time_range, drop = FALSE, ...)
+  f <- apply(f_time, c(2, 3), mean)
+  f <- f[as.character(dimnames(f)[[1]]) %in% species, , drop = FALSE]
+  plot_dat <- data.frame(value = c(f),
+                         Species = dimnames(f)[[1]],
+                         w = rep(sim@params@w, each = length(species)))
+  if (length(species) > 12) {
+    p <- ggplot(plot_dat) + geom_line(aes(x = w, y = value, group = Species))
+  } else {
+    p <- ggplot(plot_dat) +
+      geom_line(aes(x = w, y = value, colour = Species, linetype = Species))
+  }
+  p <- p +
+    scale_x_continuous(name = "Size [g]", trans = "log10") +
+    scale_y_continuous(name = "Fishing mortality [1/Year]",
+                       limits = c(0, max(plot_dat$value))) +
+    scale_colour_manual(values = sim@params@linecolour) +
+    scale_linetype_manual(values = sim@params@linetype)
+  if (print_it) {
+    print(p)
+  }
+  return(p)
 }
 
 
@@ -868,136 +868,136 @@ plotFMort <- function(sim, species = dimnames(sim@n)$sp,
 #' plotGrowthCurves(sim, species = "Cod", max_age = 24)
 #' }
 plotGrowthCurves <- function(object, species,
-            max_age = 20, percentage = TRUE, print_it = TRUE) {
-    if (is(object, "MizerSim")) {
-        sim <- object
-        if (missing(species)) {
-            species <- dimnames(sim@n)$sp
-        }
-        # reorder list of species to coincide with order in sim
-        idx <- which(dimnames(sim@n)$sp %in% species)
-        species <- dimnames(sim@n)$sp[idx]
-        age <- seq(0, max_age, length.out = 50)
-        ws <- array(dim = c(length(species), length(age)),
-                    dimnames = list("Species" = species, "Age" = age))
-        g <- getEGrowth(sim@params, sim@n[dim(sim@n)[1], , ], 
-                        sim@n_pp[dim(sim@n)[1], ], sim@n_bb[dim(sim@n)[1], ], sim@n_aa[dim(sim@n)[1], ], sim@intTempScalar[,,1], sim@metTempScalar[,,1]) #AA
-        for (j in 1:length(species)) {
-            i <- idx[j]
-            g_fn <- stats::approxfun(sim@params@w, g[i, ])
-            myodefun <- function(t, state, parameters){
-                return(list(g_fn(state)))
-            }
-            ws[j, ] <- deSolve::ode(y = sim@params@species_params$w_min[i],
-                                    times = age, func = myodefun)[, 2]
-            if (percentage) {
-                ws[j, ] <- ws[j, ] / sim@params@species_params$w_inf[i] * 100
-            }
-        }
-        plot_dat <- reshape2::melt(ws)
-        plot_dat$Species <- as.character(plot_dat$Species)
-        if (length(species) > 12) {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value, group = Species))
-        } else {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value,
-                              colour = Species, linetype = Species))
-        }
-        y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
-        p <- p +
-            scale_x_continuous(name = "Age [Years]") +
-            scale_y_continuous(name = y_label) +
-            scale_colour_manual(values = sim@params@linecolour) +
-            scale_linetype_manual(values = sim@params@linetype)
-
-        # Extra stuff for single-species case
-        if (length(species) == 1 && !percentage) {
-            w_inf <- sim@params@species_params$w_inf[idx[1]]
-            p <- p + geom_hline(yintercept = w_inf) +
-                annotate("text", 0, w_inf, vjust = -1, label = "Maximum")
-            w_mat <- sim@params@species_params$w_mat[idx[1]]
-            p <- p + geom_hline(yintercept = w_mat) +
-                annotate("text", 0, w_mat, vjust = -1, label = "Maturity")
-            if (all(c("a", "b", "k_vb") %in% names(sim@params@species_params))) {
-                a <- sim@params@species_params$a[idx[1]]
-                b <- sim@params@species_params$b[idx[1]]
-                k_vb <- sim@params@species_params$k_vb[idx[1]]
-                L_inf <- (w_inf/a)^(1/b)
-                vb <- a * (L_inf * (1 - exp(-k_vb * age)))^b
-                dat <- data.frame("x" = age, "y" = vb)
-                p <- p + geom_line(data = dat, aes(x = x, y = y))
-            }
-        }
-        
-        if(percentage) p <- p + scale_y_continuous(breaks = seq(0,100,by = 20))
-
-        if (print_it) return(p)
-    } else {
-        # Plot growth curves using a MizerParams object.
-        sim <- project(object, t_max = 1) # construct the temperature scalars
-        params <- object
-        if (missing(species)) {
-            species <- dimnames(params@initial_n)$sp
-        }
-        # reorder list of species to coincide with order in params
-        idx <- which(dimnames(params@initial_n)$sp %in% species)
-        species <- dimnames(params@initial_n)$sp[idx]
-        age <- seq(0, max_age, length.out = 50)
-        ws <- array(dim = c(length(species), length(age)),
-                    dimnames = list(Species = species, Age = age))
-        g <- getEGrowth(params, params@initial_n, params@initial_n_pp, params@initial_n_bb, params@initial_n_aa, 
-                        intakeScalar = sim@intTempScalar[,,1], metScalar = sim@metTempScalar[,,1]) ##AA
-        for (j in 1:length(species)) {
-            i <- idx[j]
-            g_fn <- stats::approxfun(params@w, g[i, ])
-            myodefun <- function(t, state, parameters){
-                return(list(g_fn(state)))
-            }
-            ws[j, ] <- deSolve::ode(y = params@species_params$w_min[i], 
-                                    times = age, func = myodefun)[, 2]
-            if (percentage) {
-                ws[j, ] <- ws[j, ] / params@species_params$w_inf[i] * 100
-            }
-        }
-        plot_dat <- reshape2::melt(ws)
-        plot_dat$Species <- as.character(plot_dat$Species)
-        if (length(species) > 12) {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value, group = Species))
-        } else {
-            p <- ggplot(plot_dat) +
-                geom_line(aes(x = Age, y = value,
-                              colour = Species, linetype = Species))
-        }
-        y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
-        p <- p +
-            scale_x_continuous(name = "Age [Years]") +
-            scale_y_continuous(name = y_label) +
-            scale_colour_manual(values = params@linecolour) +
-            scale_linetype_manual(values = params@linetype)
-
-        # Extra stuff for single-species case
-        if (length(species) == 1 && !percentage) {
-            w_inf <- params@species_params$w_inf[idx[1]]
-            p <- p + geom_hline(yintercept = w_inf) +
-                annotate("text", 0, w_inf, vjust = -1, label = "Maximum")
-            w_mat <- params@species_params$w_mat[idx[1]]
-            p <- p + geom_hline(yintercept = w_mat) +
-                annotate("text", 0, w_mat, vjust = -1, label = "Maturity")
-            if (all(c("a", "b", "k_vb") %in% names(params@species_params))) {
-                a <- params@species_params$a[idx[1]]
-                b <- params@species_params$b[idx[1]]
-                k_vb <- params@species_params$k_vb[idx[1]]
-                L_inf <- (w_inf/a)^(1/b)
-                vb <- a * (L_inf * (1 - exp(-k_vb * age)))^b
-                dat <- data.frame(x = age, y = vb)
-                p <- p + geom_line(data = dat, aes(x = x, y = y))
-            }
-        }
-
-        if (print_it) return(p)
+                             max_age = 20, percentage = TRUE, print_it = TRUE) {
+  if (is(object, "MizerSim")) {
+    sim <- object
+    if (missing(species)) {
+      species <- dimnames(sim@n)$sp
     }
+    # reorder list of species to coincide with order in sim
+    idx <- which(dimnames(sim@n)$sp %in% species)
+    species <- dimnames(sim@n)$sp[idx]
+    age <- seq(0, max_age, length.out = 50)
+    ws <- array(dim = c(length(species), length(age)),
+                dimnames = list("Species" = species, "Age" = age))
+    g <- getEGrowth(sim@params, sim@n[dim(sim@n)[1], , ], 
+                    sim@n_pp[dim(sim@n)[1], ], sim@n_bb[dim(sim@n)[1], ], sim@n_aa[dim(sim@n)[1], ], sim@intTempScalar[,,1], sim@metTempScalar[,,1]) #AA
+    for (j in 1:length(species)) {
+      i <- idx[j]
+      g_fn <- stats::approxfun(sim@params@w, g[i, ])
+      myodefun <- function(t, state, parameters){
+        return(list(g_fn(state)))
+      }
+      ws[j, ] <- deSolve::ode(y = sim@params@species_params$w_min[i],
+                              times = age, func = myodefun)[, 2]
+      if (percentage) {
+        ws[j, ] <- ws[j, ] / sim@params@species_params$w_inf[i] * 100
+      }
+    }
+    plot_dat <- reshape2::melt(ws)
+    plot_dat$Species <- as.character(plot_dat$Species)
+    if (length(species) > 12) {
+      p <- ggplot(plot_dat) +
+        geom_line(aes(x = Age, y = value, group = Species))
+    } else {
+      p <- ggplot(plot_dat) +
+        geom_line(aes(x = Age, y = value,
+                      colour = Species, linetype = Species))
+    }
+    y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
+    p <- p +
+      scale_x_continuous(name = "Age [Years]") +
+      scale_y_continuous(name = y_label) +
+      scale_colour_manual(values = sim@params@linecolour) +
+      scale_linetype_manual(values = sim@params@linetype)
+    
+    # Extra stuff for single-species case
+    if (length(species) == 1 && !percentage) {
+      w_inf <- sim@params@species_params$w_inf[idx[1]]
+      p <- p + geom_hline(yintercept = w_inf) +
+        annotate("text", 0, w_inf, vjust = -1, label = "Maximum")
+      w_mat <- sim@params@species_params$w_mat[idx[1]]
+      p <- p + geom_hline(yintercept = w_mat) +
+        annotate("text", 0, w_mat, vjust = -1, label = "Maturity")
+      if (all(c("a", "b", "k_vb") %in% names(sim@params@species_params))) {
+        a <- sim@params@species_params$a[idx[1]]
+        b <- sim@params@species_params$b[idx[1]]
+        k_vb <- sim@params@species_params$k_vb[idx[1]]
+        L_inf <- (w_inf/a)^(1/b)
+        vb <- a * (L_inf * (1 - exp(-k_vb * age)))^b
+        dat <- data.frame("x" = age, "y" = vb)
+        p <- p + geom_line(data = dat, aes(x = x, y = y))
+      }
+    }
+    
+    if(percentage) p <- p + scale_y_continuous(breaks = seq(0,100,by = 20))
+    
+    if (print_it) return(p)
+  } else {
+    # Plot growth curves using a MizerParams object.
+    sim <- project(object, t_max = 1) # construct the temperature scalars
+    params <- object
+    if (missing(species)) {
+      species <- dimnames(params@initial_n)$sp
+    }
+    # reorder list of species to coincide with order in params
+    idx <- which(dimnames(params@initial_n)$sp %in% species)
+    species <- dimnames(params@initial_n)$sp[idx]
+    age <- seq(0, max_age, length.out = 50)
+    ws <- array(dim = c(length(species), length(age)),
+                dimnames = list(Species = species, Age = age))
+    g <- getEGrowth(params, params@initial_n, params@initial_n_pp, params@initial_n_bb, params@initial_n_aa, 
+                    intakeScalar = sim@intTempScalar[,,1], metScalar = sim@metTempScalar[,,1]) ##AA
+    for (j in 1:length(species)) {
+      i <- idx[j]
+      g_fn <- stats::approxfun(params@w, g[i, ])
+      myodefun <- function(t, state, parameters){
+        return(list(g_fn(state)))
+      }
+      ws[j, ] <- deSolve::ode(y = params@species_params$w_min[i], 
+                              times = age, func = myodefun)[, 2]
+      if (percentage) {
+        ws[j, ] <- ws[j, ] / params@species_params$w_inf[i] * 100
+      }
+    }
+    plot_dat <- reshape2::melt(ws)
+    plot_dat$Species <- as.character(plot_dat$Species)
+    if (length(species) > 12) {
+      p <- ggplot(plot_dat) +
+        geom_line(aes(x = Age, y = value, group = Species))
+    } else {
+      p <- ggplot(plot_dat) +
+        geom_line(aes(x = Age, y = value,
+                      colour = Species, linetype = Species))
+    }
+    y_label <- if (percentage) "Percent of maximum size" else "Size [g]"
+    p <- p +
+      scale_x_continuous(name = "Age [Years]") +
+      scale_y_continuous(name = y_label) +
+      scale_colour_manual(values = params@linecolour) +
+      scale_linetype_manual(values = params@linetype)
+    
+    # Extra stuff for single-species case
+    if (length(species) == 1 && !percentage) {
+      w_inf <- params@species_params$w_inf[idx[1]]
+      p <- p + geom_hline(yintercept = w_inf) +
+        annotate("text", 0, w_inf, vjust = -1, label = "Maximum")
+      w_mat <- params@species_params$w_mat[idx[1]]
+      p <- p + geom_hline(yintercept = w_mat) +
+        annotate("text", 0, w_mat, vjust = -1, label = "Maturity")
+      if (all(c("a", "b", "k_vb") %in% names(params@species_params))) {
+        a <- params@species_params$a[idx[1]]
+        b <- params@species_params$b[idx[1]]
+        k_vb <- params@species_params$k_vb[idx[1]]
+        L_inf <- (w_inf/a)^(1/b)
+        vb <- a * (L_inf * (1 - exp(-k_vb * age)))^b
+        dat <- data.frame(x = age, y = vb)
+        p <- p + geom_line(data = dat, aes(x = x, y = y))
+      }
+    }
+    
+    if (print_it) return(p)
+  }
 }
 
 
@@ -1169,24 +1169,24 @@ plotPPMR<-function(object=object, grid=T, observed=FALSE, prey=dimnames(object@d
 #' }
 setMethod("plot", signature(x = "MizerSim", y = "missing"),
           function(x, ...) {
-              p1 <- plotFeedingLevel(x, print_it = FALSE, ...)
-              p2 <- plotSpectra(x, print_it = FALSE, ...)
-              p3 <- plotBiomass(x, y_ticks = 3, print_it = FALSE, ...)
-              p4 <- plotM2(x, print_it = FALSE, ...)
-              p5 <- plotFMort(x, print_it = FALSE, ...)
-              grid::grid.newpage()
-              glayout <- grid::grid.layout(3, 2) # widths and heights arguments
-              vp <- grid::viewport(layout = glayout)
-              grid::pushViewport(vp)
-              vplayout <- function(x, y)
-                  grid::viewport(layout.pos.row = x, layout.pos.col = y)
-              print(p1 + theme(legend.position = "none"), vp = vplayout(1, 1))
-              print(p3 + theme(legend.position = "none"), vp = vplayout(1, 2))
-              print(p4 + theme(legend.position = "none"), vp = vplayout(2, 1))
-              print(p5 + theme(legend.position = "none"), vp = vplayout(2, 2))
-              print(p2 + theme(legend.position = "right",
-                               legend.key.size = unit(0.1, "cm")),
-                    vp = vplayout(3, 1:2))
+            p1 <- plotFeedingLevel(x, print_it = FALSE, ...)
+            p2 <- plotSpectra(x, print_it = FALSE, ...)
+            p3 <- plotBiomass(x, y_ticks = 3, print_it = FALSE, ...)
+            p4 <- plotM2(x, print_it = FALSE, ...)
+            p5 <- plotFMort(x, print_it = FALSE, ...)
+            grid::grid.newpage()
+            glayout <- grid::grid.layout(3, 2) # widths and heights arguments
+            vp <- grid::viewport(layout = glayout)
+            grid::pushViewport(vp)
+            vplayout <- function(x, y)
+              grid::viewport(layout.pos.row = x, layout.pos.col = y)
+            print(p1 + theme(legend.position = "none"), vp = vplayout(1, 1))
+            print(p3 + theme(legend.position = "none"), vp = vplayout(1, 2))
+            print(p4 + theme(legend.position = "none"), vp = vplayout(2, 1))
+            print(p5 + theme(legend.position = "none"), vp = vplayout(2, 2))
+            print(p2 + theme(legend.position = "right",
+                             legend.key.size = unit(0.1, "cm")),
+                  vp = vplayout(3, 1:2))
           }
 )
 
@@ -1231,7 +1231,7 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
   {
     Biom <- melt(x) # melt for ggplot
     colnames(Biom) = c("time","phen","value")
-
+    
     # create a species column
     Biom$sp = sapply(Biom$phen, function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
     return(Biom)
@@ -1248,7 +1248,7 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
       BiomPhen$trait <- rep(trait, each = length(unique(BiomPhen$time)))
     
     BiomPhen <- BiomPhen[BiomPhen$value >= min_value,]
-
+    
     p <- ggplot(BiomSp) +
       geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp), size = 1.2) +
       geom_line(data = BiomPhen, aes(x = time, y = value, colour = as.factor(sp), group = phen), alpha = 0.2) +
@@ -1266,32 +1266,32 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
     {
       BiomPhen <- BiomPhen[BiomPhen$sp == species, ]
       BiomSp <- BiomSp[BiomSp$sp == species, ]
-    plotTitle <- paste("Species",species)
-    
-    p <- ggplot(BiomPhen) +
-      geom_line(aes(x = time, y = value, group = phen), alpha = .75) +
-      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
-      scale_x_continuous(name = "Time in years") +
-      # scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
-      theme(panel.background = element_rect(fill = "white", color = "black"),
-            panel.grid.minor = element_line(colour = "grey92"),
-            legend.key = element_rect(fill = "white"))+
-      ggtitle(plotTitle) 
-    
-    if(!is.null(trait))
-    {
-    plotTitle <- paste("Trait of species",species)
-    
-    p <- ggplot(BiomPhen) +
-      geom_line(aes(x = time, y = value, colour = trait, group = trait), alpha = 1) +
-      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
-      scale_x_continuous(name = "Time in years") +
-      scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
-      theme(panel.background = element_rect(fill = "white", color = "black"),
-            panel.grid.minor = element_line(colour = "grey92"),
-            legend.key = element_rect(fill = "white"))+
-      ggtitle(plotTitle) 
-    }
+      plotTitle <- paste("Species",species)
+      
+      p <- ggplot(BiomPhen) +
+        geom_line(aes(x = time, y = value, group = phen), alpha = .75) +
+        scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
+        scale_x_continuous(name = "Time in years") +
+        # scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
+        theme(panel.background = element_rect(fill = "white", color = "black"),
+              panel.grid.minor = element_line(colour = "grey92"),
+              legend.key = element_rect(fill = "white"))+
+        ggtitle(plotTitle) 
+      
+      if(!is.null(trait))
+      {
+        plotTitle <- paste("Trait of species",species)
+        
+        p <- ggplot(BiomPhen) +
+          geom_line(aes(x = time, y = value, colour = trait, group = trait), alpha = 1) +
+          scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(seq(-30,4,2)))) +
+          scale_x_continuous(name = "Time in years") +
+          scale_colour_gradientn(colours=jet.colors(9), limits = c(NA,NA))+
+          theme(panel.background = element_rect(fill = "white", color = "black"),
+                panel.grid.minor = element_line(colour = "grey92"),
+                legend.key = element_rect(fill = "white"))+
+          ggtitle(plotTitle) 
+      }
     }
     
   } else {
@@ -1396,7 +1396,7 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
       ggtitle("Size spectrum")
     
   }
-
+  
   if(save_it) ggsave(plot = p, filename = nameSave, scale = 1.5)
   
   if (returnData) return(plot_datSp) else if(print_it) return(p)
@@ -1586,7 +1586,7 @@ plotStarvation <- function(object, time_range = max(as.numeric(dimnames(object@n
     n <- array(object@n[x,,],dim=dim(object@n)[2:3])
     dimnames(n) <- dimnames(object@n)[2:3]
     starv <- getSMort(object@params, n=n, n_pp = object@n_pp[x,],n_aa = object@n_aa[x,],n_bb = object@n_bb[x,], 
-                           intakeScalar = object@intTempScalar[,,x], metScalar = object@metTempScalar[,,x])
+                      intakeScalar = object@intTempScalar[,,x], metScalar = object@metTempScalar[,,x])
     return(starv)})
   
   if (species) # if I want to display species instead of ecotypes
@@ -1803,16 +1803,24 @@ plotPredRate <- function(object, time_range = max(as.numeric(dimnames(object@n)$
 
 
 plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 0, traitID = object@params@species_params$ed_int,
-                       cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2),
+                       cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2), simStart = 0,
                        print_it = T, returnData = F, save_it = F, nameSave = paste("CohortSpecies",iSpecies,".png",sep=""))
 {
   # setting up some parameters
   tic()
   sex_ratio = 0.5
   T = t_steps/dt; # number of time steps you want to follow cohort for
-  no_sp <- dim(object@params@species_params)[1]
+  
+  # getting out of hands as now the species df follows over multiple sims (bad idea?)
+  # keeping only the right portion of the df
+  sp_params <- filter(object@params@species_params, extinct >= (simStart/dt) | extinct == F)
+  #updating it in the object (won't be saved)
+  object@params@species_params <- sp_params
+  traitVec <- object@params@species_params[,traitID]
+  
+  no_sp <- dim(sp_params)[1]
   PhenIdx <- seq(1,no_sp)
-  PhenName<- object@params@species_params$ecotype[PhenIdx] # this is their name
+  PhenName<- sp_params$ecotype[PhenIdx] # this is their name
   no_Phen = length(PhenIdx)
   fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenIdx,cohortSpan)) #collect the total spawn per time (start of cohort) per species
   names(dimnames(fitness)) <- list("species","cohort")
@@ -1851,8 +1859,8 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
       e_spawning <- getESpawning(object = object@params, n = n,n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                                  intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1])
       e_spawning_pop <- apply((e_spawning*n),1,"*",object@params@dw)
-      rdi <- sex_ratio*(e_spawning_pop * object@params@species_params$erepro)/object@params@w[object@params@w_min_idx] # global rdi
-
+      rdi <- sex_ratio*(e_spawning_pop * sp_params$erepro)/object@params@w[object@params@w_min_idx] # global rdi
+      
       # get the proportion of abundance from the followed cohort. It's not t+1 as repro and death happens at the same time so we take the value from previous time step
       cohortF <- cohortS[PhenIdx,t]/cohortS[PhenIdx,1]
       cohortF[!is.finite(cohortF)] <- 0
@@ -1864,11 +1872,11 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
     fitness[which(dimnames(fitness)[[1]] == PhenIdx),which(t_start==cohortSpan)] = cohortR[PhenIdx,T] # fitness is the total spawn within the time period
   }
   
-  rownames(fitness) <- object@params@species_params$ecotype[PhenIdx] # this is their name
+  rownames(fitness) <- sp_params$ecotype[PhenIdx] # this is their name
   # make it a dataframe and add species and mat size for processing later
   fitness <- as.data.frame(fitness)
-  fitness$trait <- traitID
-  fitness$species <- object@params@species_params$species
+  fitness$trait <- traitVec
+  fitness$species <- sp_params$species
   
   fitness <- fitness[!rowSums(fitness[,-c(dim(fitness)[2]-1,dim(fitness)[2])]) == 0,] # get rid of phenotypes not appeared yet
   
@@ -1971,24 +1979,24 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, SpIdx
   
   for(iSpecies in 1:no_sp) # improve that later
   {
-  
-  plotList[[iSpecies]] <- ggplot(plotDat[(which(plotDat$Species == iSpecies)),]) +
-    geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    # geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
-    scale_y_continuous(trans = "log10", name = paste("Species",iSpecies), limits = ylim) +
-    scale_x_continuous(name = NULL) +
-    scale_color_gradient(name = "time", low = "black", high = "orange")+
-    # facet_grid(.~scenario, scales = "free") +
-    theme(legend.title=element_text(),
-          panel.background = element_rect(fill = "white", color = "black"),
-          # panel.grid.minor = element_line(colour = "grey92"),
-          # legend.justification=c(1,1),
-          legend.position = "bottom",
-          strip.background = element_blank(),
-          strip.text.x = element_text(c("no predation","predation")),
-          legend.key = element_rect(fill = "white"))+
-    ggtitle(NULL)
-  
+    
+    plotList[[iSpecies]] <- ggplot(plotDat[(which(plotDat$Species == iSpecies)),]) +
+      geom_point(aes(x=trait,y=Fitness, color = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+      # geom_line(aes(x=trait,y=Fitness, color = Time, group = Time), size = 0.5) +#,group = Time, color = Time), size = 1) +
+      scale_y_continuous(trans = "log10", name = paste("Species",iSpecies), limits = ylim) +
+      scale_x_continuous(name = NULL) +
+      scale_color_gradient(name = "time", low = "black", high = "orange")+
+      # facet_grid(.~scenario, scales = "free") +
+      theme(legend.title=element_text(),
+            panel.background = element_rect(fill = "white", color = "black"),
+            # panel.grid.minor = element_line(colour = "grey92"),
+            # legend.justification=c(1,1),
+            legend.position = "bottom",
+            strip.background = element_blank(),
+            strip.text.x = element_text(c("no predation","predation")),
+            legend.key = element_rect(fill = "white"))+
+      ggtitle(NULL)
+    
   }
   
   if (returnPlot) return(plotList)
@@ -2198,7 +2206,7 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
   
   # myData <- data.frame("temperature" = temperature-273, "scalar" = temperatureScalar[20,])
   t_ref <- object@params@species_params$t_d[iSpecies] - (5 + 0.4*object@params@species_params$t_d[iSpecies] )
-
+  
   p1 <- ggplot(myData)+
     geom_line(aes(x = temperature, y = intake), color = "blue")+
     geom_line(aes(x = temperature, y = metabolism), color = "red")+
@@ -2521,27 +2529,33 @@ ratioReproduction <- function(object, time_range = max(as.numeric(dimnames(objec
   
 }
 
-plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, size = NULL, ylim = c(NA,NA),
-                                   f0 = object@params@f0,  t_d = NULL, ed_int = NULL, ea_int = NULL, t_ref = NULL,
-                                   save_it = F, print_it = T, returnData = F, energyProfile = T)
+#' This function is used to look at the performace curve of species.
+#' It takes a basic sim for default but you can specify any parameters you want to reshape the curve (only intake available at the moment)
+plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, size = NULL, f0 = object@params@f0,
+                                   t_d = NULL, t_ref = NULL, ed_int = NULL, ea_int = NULL, ca_int = NULL, cd_int = NULL,
+                                   save_it = F, print_it = T, returnData = F, ylim = c(NA,NA), energyProfile = T)
 {
   
   if(is.null(size)) size <- # size slot closer to maturation size
       which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
               min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
   
+  
   if(is.null(t_d)) t_d <- object@params@species_params$t_d[iSpecies]
+  if(is.null(t_ref)) t_ref <-   t_ref <- t_d - (5 + 0.25*t_d) #object@params@t_ref
+  
   if(is.null(ed_int)) ed_int <- object@params@species_params$ed_int[iSpecies]
   if(is.null(ea_int)) ea_int <- object@params@species_params$ea_int[iSpecies]
-  if(is.null(t_ref)) t_ref <- object@params@t_ref
+  if(is.null(cd_int)) cd_int <- object@params@species_params$cd_int[iSpecies]
+  if(is.null(ca_int)) ca_int <- object@params@species_params$ca_int[iSpecies]
   
   intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
-                          Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
-                          Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
+                          Ea = ea_int, c_a = ca_int, 
+                          Ed = ed_int, c_d = cd_int)
   
-  metabScalar <- tempFun(w = size, temperature = temperature, t_ref = object@params@t_ref , t_d = t_d,
-                         Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
-                         Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
+  metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
+                         Ea = object@params@species_params$ea_met[iSpecies], c_a = object@params@species_params$ca_met[iSpecies],
+                         Ed = object@params@species_params$ed_met[iSpecies], c_d = object@params@species_params$cd_met[iSpecies])
   
   
   
@@ -2550,8 +2564,14 @@ plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, siz
   b <- object@params@metab[iSpecies,size] * metabScalar       
   e <- e - b
   
-  if(energyProfile) myData <- data.frame("temperature" = temperature, "energy" = t(e)) 
-  else myData <- dat.frame("temperature" = temperature, "energy" = t(intakeScalar))
+  if(energyProfile) 
+  {
+    myData <- data.frame("temperature" = temperature, "energy" = t(e)) 
+    ylabel <- "energy"
+  }  else {
+    myData <- data.frame("temperature" = temperature, "energy" = t(intakeScalar))
+    ylabel <- "scalar"
+  }
   
   p <- ggplot(myData)+
     geom_line(aes(x = temperature, y = energy))+
@@ -2559,7 +2579,7 @@ plotTemperatureProfile <- function(object, temperature = 1:30, iSpecies = 5, siz
     annotate("text", x = t_ref, y = 0.1, label = "t_ref") +
     geom_vline(xintercept = t_d, linetype = "dashed", alpha = 0.5,color = "red") +
     annotate("text", x = t_d, y = 0.1, label = "t_d") +
-    scale_y_continuous(name = "energy", limits = ylim)+
+    scale_y_continuous(name = ylabel, limits = ylim)+
     theme(legend.title=element_blank(),
           legend.justification=c(1,1),
           legend.key = element_rect(fill = "white"),
@@ -2582,23 +2602,21 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
   
   
   if(is.null(size))  size <- # size slot closer to maturation size
-    which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
-            min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
+      which(abs(object@params@w - object@params@species_params$w_mat[iSpecies]) == 
+              min(abs(object@params@w - object@params@species_params$w_mat[iSpecies])))
   
   switch(trait,
          "ed_int" = {
            if (is.null(traitValue)) ed_int <- seq(round(min(object@params@species_params$ed_int),1),round(max(object@params@species_params$ed_int),1),by = 0.1)
            else ed_int <- traitValue
            netE_dat <- matrix(NA,nrow = length(temperature) ,ncol = length(ed_int),dimnames = list("temperature" = temperature,"trait"= ed_int))
-           
            for(var in ed_int)
            {
              if(is.null(ea)) ea_int <- object@params@species_params$ea_int[iSpecies]
-             else ea_int <- ea(var)
-             
+             # else ea_int <- ea(var)
+             else ea_int <- ea
              if(is.null(tref)) t_ref <- object@params@t_ref
              else t_ref <- tref(t_d)
-
              intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
                                      Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
                                      Ed = var, c_d = object@params@species_params$cd_int[iSpecies])
@@ -2606,6 +2624,37 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
              metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
                                     Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
                                     Ed = var, c_d = object@params@species_params$cd_met[iSpecies])
+             
+             
+             
+             a <- object@params@intake_max[iSpecies,size] * intakeScalar
+             e <- object@params@f0 * a * object@params@species_params$alpha[iSpecies]
+             b <- object@params@metab[iSpecies,size] * metabScalar       
+             e <- e - b
+             
+             if(plotEnergy) netE_dat[,which(colnames(netE_dat) == var)] <- e
+             else netE_dat[,which(colnames(netE_dat) == var)] <- intakeScalar
+           }
+         },
+         "ea_int" = {
+           if (is.null(traitValue)) ea_int <- seq(round(min(object@params@species_params$ea_int),1),round(max(object@params@species_params$ea_int),1),by = 0.1)
+           else ea_int <- traitValue
+           netE_dat <- matrix(NA,nrow = length(temperature) ,ncol = length(ea_int),dimnames = list("temperature" = temperature,"trait"= ea_int))
+           for(var in ea_int)
+           {
+             if(is.null(ed)) ed_int <- object@params@species_params$ed_int[iSpecies]
+             else ea_int <- ea(var)
+             
+             if(is.null(tref)) t_ref <- object@params@t_ref
+             else t_ref <- tref(t_d)
+             
+             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
+                                     Ea = var, c_a = object@params@species_params$ca_int[iSpecies], 
+                                     Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
+             
+             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
+                                    Ea = var, c_a = object@params@species_params$ca_met[iSpecies],
+                                    Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
              
              
              
@@ -2654,7 +2703,7 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
          },
          {print("Trait specified is not in the list")}
   )
-  
+
   
   plot_dat <- melt(netE_dat)
   
