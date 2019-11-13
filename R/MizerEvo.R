@@ -355,8 +355,11 @@ tic()
     # firstRun = max(Nparam$timeMax)/t_max*dt +1 # state at which run we're starting
 
     firstRun = 1 # at the moment temperature uses j (and first run) to determine the rigth temperature vector // fix: added previousTime arg to balance things so firstRun should be useless now
-    nameList = initCondition@params@species_params$ecotype # this list keep in memory all the species name (as I lose some in my ecotypes by getting rid of the extinct/ use to give ecotypes namee)
-  }
+    nameList = initCondition@params@species_params$ecotype # this list keeps in memory all the species name (as I lose some in my ecotypes by getting rid of the extinct/ use to give ecotypes namee)
+    
+    NparamExtinct <- initCondition@params@species_params[initCondition@params@species_params$extinct != F,] # save the extinct species dataframe to compile it at the end of the sim (just to keep track of things)
+    NparamExtinct$timeMax <- Nparam$timeMax[1] # to have the same timeMAx everywhere
+    }
   
   # need some specific stuff when running single species model
   oneSpMode = F
@@ -394,7 +397,7 @@ tic()
       allData <- list() # this list will save the data output of all the projections
       counter = 1 # used to increment the list (I guess there is a better way to do that)
       
-      while (length(sim) > 3 ) # ugly but if everything is done, length(sim) = 1, if sim dead, length =2, if a mutant appear, length = 5( sim,time,resident, n , npp)
+      while (length(sim) > 3 ) # ugly but if everything is done, length(sim) = 1, if sim dead, length =2, if a mutant appear, length >3( sim,time,resident, n , npp)
       {
         n_init = sim$n # last time abundance, that will be modified and use as initiation for next projection
         
@@ -419,7 +422,11 @@ tic()
           {
             cat(sprintf("something is wrong with the mutant name: %i\n", mutant$ecotype))
           }
-          while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+          while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e6),1),sep=""))
+          
+          nameList <- rbind(nameList,mutant$ecotype)
+          # cat(sprintf("mutant's name is: %i\n", mutant$ecotype))
+          # take 5 random digits to follow the digit species identity as a name
           # TRAITS
           switch(Trait,
                  size = {
@@ -634,7 +641,7 @@ tic()
       # but first I need to save it
       allRun[[j]] <- sim
       
-      # then let's clean the sim of the extinct species and initial next sim
+      # then let's clean the sim of the extinct species and initiate next sim
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
@@ -661,9 +668,10 @@ tic()
   }
   # all runs done
   
-  # final param counting the extinct species
+  # final param counting the extinct species, need to take nameList into account if starting from prev sim otherwise hte extinct species from prev sim will disappear
     a = NULL
     for (i in firstRun:length(allRun) ) a = rbind(a,allRun[[i]]@params@species_params) # bind the different dataframes
+    if(!is.null(NparamExtinct)) a <- rbind(a,NparamExtinct) # if sim started from previous sim, then add the extinct phen from previpus sim
     a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
     a <- a[!duplicated(a$ecotype),]
     SummaryParams = a[order(a$pop,a$ecotype),]
@@ -690,7 +698,7 @@ tic()
                               # normalFeeding = normalFeeding, tau = tau, 
                               interaction = interactionSave)
     # handle and save the final data
-    # return(list(allRun,FinalParam,temperature))
+    # return(list(allRun,FinalParam,temperature, previousTime))
     sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it, previousTime = previousTime)
     gc()
     sim = superOpt(sim)
