@@ -1208,10 +1208,10 @@ plotlyGrowthCurves <- function(object, species,
     geom_area(aes(x = w, y = Proportion, fill = Prey)) +
     facet_wrap(~ Predator, ncol=5) +
     scale_x_log10() +
-    labs(x = "Size [g]") +
+    labs(x = "Size [g]") 
 ## TO DO - would be nice to add a line indicating maturation size for each species
  #   geom_vline(xintercept = log(params@species_params$w_mat)) +
-    ggtitle(as.character(params@species_params$species[species])) 
+#    ggtitle(as.character(params@species_params$species[species])) 
  #   scale_fill_manual(values = colorvalues)
 }
 
