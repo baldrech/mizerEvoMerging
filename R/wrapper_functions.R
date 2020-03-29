@@ -439,6 +439,7 @@ set_trait_model <- function(no_sp = 10,
             r_pp = r_pp,
             kappa = kappa,
             lambda = lambda,
+            f0 = f0,
             min_w_bb = min_w_bb,
             w_bb_cutoff = w_bb_cutoff,
             r_bb = r_bb,
@@ -456,7 +457,7 @@ set_trait_model <- function(no_sp = 10,
             # normalFeeding = normalFeeding, 
             # tau = tau, 
             # interaction = interaction
-        ) 
+        )
     # Sort out maximum recruitment - see A&P 2009 Get max flux at recruitment
     # boundary, R_max R -> | -> g0 N0 R is egg flux, in numbers per time Actual
     # flux at recruitment boundary = RDD = NDD * g0 (where g0 is growth rate) So
@@ -479,7 +480,6 @@ set_trait_model <- function(no_sp = 10,
     # No need to include (1 - psi) in growth equation because allocation to reproduction at this size = 0, so 1 - psi = 1
     g0 <- (alpha * f0 * h * trait_params@w[1]^n - ks * trait_params@w[1]^p)
     r_max <- N0_max * g0
-    
     trait_params@species_params$r_max <- r_max
     } else trait_params@species_params$r_max <- rm
     
