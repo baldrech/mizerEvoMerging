@@ -1803,36 +1803,74 @@ plotPredRate <- function(object, time_range = max(as.numeric(dimnames(object@n)$
 
 
 plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 0, traitID = object@params@species_params$ed_int,
-                       cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2), simStart = 0,
+                       cohortSpan = c(1,dim(object@n)[1]-t_steps/dt), simStart = 0,
                        print_it = T, returnData = F, save_it = F, nameSave = paste("CohortSpecies",iSpecies,".png",sep=""))
 {
+  srrMatrix <- function(rdi,species_params) # srr functions handling matrixes instead of vectors
+  {
+    rdiSum <- apply(rdi,2,sum)
+    rdiNormal = vector(mode = "numeric", length = length(rdiSum))
+    names(rdiSum) <- species_params$species
+    for (i in unique(species_params$species))
+    {
+      rdiSp = rdiSum # save to manip
+      rdiSp[which(names(rdiSum) != i)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
+      
+      for (i in 1:length(rdiSp))
+        # in case of NA
+        if (is.na(rdiSp[i]) == TRUE)
+          rdiSp[i] = 1e-30
+      
+      if (sum(rdiSp) != 0)
+        rdiNormal = rdiNormal + rdiSp / sum(rdiSp)
+    }
+    r_maxN = species_params$r_max * rdiNormal
+    
+    for (i in 1:length(r_maxN))
+      # do not want to divide by 0
+      if (r_maxN[i] == 0)
+        r_maxN[i] = species_params$r_max[i]
+    
+    return(t(t(rdi) * r_maxN) / t(t(rdi) + r_maxN) )
+  }
   # setting up some parameters
   tic()
   sex_ratio = 0.5
   T = t_steps/dt; # number of time steps you want to follow cohort for
   
-  # getting out of hands as now the species df follows over multiple sims (bad idea?)
-  # keeping only the right portion of the df
-  sp_params <- filter(object@params@species_params, extinct >= (simStart/dt) | extinct == F)
-  #updating it in the object (won't be saved)
-  object@params@species_params <- sp_params
-  traitVec <- object@params@species_params[,traitID]
+
   
-  no_sp <- dim(sp_params)[1]
-  PhenIdx <- seq(1,no_sp)
-  PhenName<- sp_params$ecotype[PhenIdx] # this is their name
-  no_Phen = length(PhenIdx)
-  fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenIdx,cohortSpan)) #collect the total spawn per time (start of cohort) per species
+  no_Phen <- dim(object@n)[2] # number of phenotypes for matrix dim
+  PhenName<- object@params@species_params$ecotype # names of phenotypes
+  
+  if(length(PhenName) != no_Phen) #conflict between biomass and species params
+  {
+    # getting out of hands as now the species df follows over multiple sims (bad idea?) | commented fix is here for non updated sims
+    # keeping only the right portion of the df
+    sp_params <- filter(object@params@species_params, extinct >= (simStart/dt) | extinct == F)
+    # no_Phen <- dim(sp_params)[1] # number of phenotypes for matrix dim
+    PhenName<- sp_params$ecotype # names of phenotypes
+    # PhenIdx <- which(object@params@species_params$ecotype %in% PhenName) # index of surving phen in the biomass matrix and such
+    # #updating it in the object (won't be saved)
+    object@params@species_params <- sp_params
+    # traitVec <- object@params@species_params[,traitID]
+  }
+  
+  
+  # PhenIdx <- seq(1,no_sp)
+  
+  # no_Phen = length(PhenIdx)
+  fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenName,cohortSpan)) #collect the total spawn per time (start of cohort) per species
   names(dimnames(fitness)) <- list("species","cohort")
   for (t_start in cohortSpan)
   {
     cat(sprintf("Cohort number %g\n",t_start))
     
     # Initialising matrixes
-    cohortW = array(0, c(no_sp, T+1)); # row vector for following cohort weight
-    cohortS = array(0, c(no_sp, T+1)); # vector for cohort survival
-    cohortR = array(0, c(no_sp, T+1)); # vector for cohort spawning
-    cohortR_sol = array(0, c(no_sp, T+1)); # vector for cohort spawn at size
+    cohortW = array(0, c(no_Phen, T+1)); # row vector for following cohort weight
+    cohortS = array(0, c(no_Phen, T+1)); # vector for cohort survival
+    cohortR = array(0, c(no_Phen, T+1)); # vector for cohort spawning
+    cohortR_sol = array(0, c(no_Phen, T+1)); # vector for cohort spawn at size
     cohortW[,1] = object@params@w[1]; # log weight initially (newborn)
     cohortS[,1] = object@n[t_start,,1]; # initial population in spectrum
     cohortInitPop <- object@n[t_start,,1] * object@params@dw[1] # initial number of individuals per species
@@ -1840,17 +1878,17 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
     
     for (t in seq(1,T)){ # within time period you're interested in
       # vector of the previous size bin for every phenotypes
-      cohortWprev = unlist(lapply(lapply(cohortW[PhenIdx,t], FUN = function(x) x-object@params@w), FUN = function(x) max(which(x>= 0)))) # yolo
+      cohortWprev = unlist(lapply(lapply(cohortW[,t], FUN = function(x) x-object@params@w), FUN = function(x) max(which(x>= 0)))) # yolo
       # growth matrix
       growth = getEGrowth(object@params,n = object@n[t_start+t-1,,],n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                           intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1])
       # update the new size bin with the growth / growth is how much more mass you get in the size bin so you just ad both to get the next size bin
-      cohortW[PhenIdx,t+1] = cohortW[PhenIdx,t]+dt*diag(growth[PhenIdx,cohortWprev])
+      cohortW[,t+1] = cohortW[,t]+dt*diag(growth[,cohortWprev])
       # mortality matrix
       z = getZ(object = object@params, n = object@n[t_start+t-1,,],n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                effort = effort,intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1], morScalar = object@morTempScalar[,,t_start+t-1] )
       # update the amount surviving the time-step
-      cohortS[PhenIdx,t+1] = cohortS[PhenIdx,t]*exp(-dt*diag(z[PhenIdx,cohortWprev])) # where does the exponential comes from? you cannot just substract as Z is just an instantaneous mortality value?
+      cohortS[,t+1] = cohortS[,t]*exp(-dt*diag(z[,cohortWprev])) # where does the exponential comes from? you cannot just substract as Z is just an instantaneous mortality value?
       # need to take global n to have the right amount of resources available but need to take the right fraction at the end for the fitness, 
       # as not all the individuals reproducing are part of the cohort.
       # need to prepare n for no NAN, I just want the n of the specific cohort so I extract the right fraction
@@ -1859,24 +1897,25 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
       e_spawning <- getESpawning(object = object@params, n = n,n_pp = object@n_pp[t_start+t-1,],n_aa = object@n_aa[t_start+t-1,],n_bb = object@n_bb[t_start+t-1,], 
                                  intakeScalar = object@intTempScalar[,,t_start+t-1], metScalar = object@metTempScalar[,,t_start+t-1])
       e_spawning_pop <- apply((e_spawning*n),1,"*",object@params@dw)
-      rdi <- sex_ratio*(e_spawning_pop * sp_params$erepro)/object@params@w[object@params@w_min_idx] # global rdi
-      
+      rdi <- sex_ratio*(e_spawning_pop * object@params@species_params$erepro)/object@params@w[object@params@w_min_idx] # global rdi
+      rdi <- srrMatrix(rdi = rdi, species_params = object@params@species_params) # what happens with rmax?
       # get the proportion of abundance from the followed cohort. It's not t+1 as repro and death happens at the same time so we take the value from previous time step
-      cohortF <- cohortS[PhenIdx,t]/cohortS[PhenIdx,1]
+      cohortF <- cohortS[,t]/cohortS[,1]
       cohortF[!is.finite(cohortF)] <- 0
       # update the total spawn for fitness
-      cohortR[PhenIdx,t+1] = cohortR[PhenIdx,t] + dt*diag(rdi[cohortWprev,PhenIdx])*cohortF/cohortInitPop[PhenIdx]
+      cohortR[,t+1] = cohortR[,t] + dt*diag(rdi[cohortWprev,])*cohortF/cohortInitPop
       #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
       #print(cohortR[PhenIdx,1:t+1])
     }
-    fitness[which(dimnames(fitness)[[1]] == PhenIdx),which(t_start==cohortSpan)] = cohortR[PhenIdx,T] # fitness is the total spawn within the time period
+    fitness[,which(t_start==cohortSpan)] = cohortR[,T] # fitness is the total spawn within the time period
   }
   
-  rownames(fitness) <- sp_params$ecotype[PhenIdx] # this is their name
+  rownames(fitness) <- PhenName # this is their name
   # make it a dataframe and add species and mat size for processing later
+  # print(fitness)
   fitness <- as.data.frame(fitness)
-  fitness$trait <- traitVec
-  fitness$species <- sp_params$species
+  fitness$trait <- object@params@species_params[,traitID]
+  fitness$species <- object@params@species_params$species
   
   fitness <- fitness[!rowSums(fitness[,-c(dim(fitness)[2]-1,dim(fitness)[2])]) == 0,] # get rid of phenotypes not appeared yet
   
