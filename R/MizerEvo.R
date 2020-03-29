@@ -44,7 +44,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     initCondition = NULL, # if I want to input previous mizer object as initial condition
                     previousTime = 0, # used to add timestamp if initCOndition is not NULL
                     initTime = 1, # time for initialisation
-                    param = NULL, # can input a param data.frame to do multispecies model
+                    param = NULL, # if you already have the mizer param object (never tried)
+                    spParams = NULL, # can input a species_param data.frame to do multispecies model
                     print_it = T, # if you want to display messages or not
                     normalFeeding = F, #if want to normalised feeding kernel
                     mAmplitude = 0.2, # width of distribution of new trait value
@@ -57,7 +58,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     interactionOne = 0.5, # to set_up interaction with one parameter
                     NparamExtinct = NULL, #keeps in memory extinct species across sims
                     interaction = matrix(interactionOne,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the interactionOne param
-                    diet_steps = 10, # for the diet thing
+                    diet_steps = 0, # for the diet thing
                     # extension
                     kappa_ben = 0.005,
                     r_bb = 2,
@@ -70,7 +71,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     w_aa_cutoff = 100,
                     t_d = 25,
                     t_ref = t_d - (5 + 0.25*t_d),
-                    temperature = NA,
+                    temperature = t_ref,
                     ea_met = NA,
                     ca_met = NA,
                     ea_int = NA,
@@ -102,9 +103,12 @@ tic()
   #   
   # }
   
+  if(!is.null(spParams)) no_sp <- dim(spParams)[1] # actualise number of species which control the arrays dimensions
+  
   if (is.null(initCondition))
   {
     firstRun = 1
+    NparamExtinct <- NULL
     s_max = no_run * t_max / dt
     # I'm deleting all the default from this function so it uses only the ones in myModel
     if (is.null(param))
@@ -315,7 +319,9 @@ tic()
     no_sp = dim(param@species_params)[1]
     # Recreate the "param" object needed for the projection
     
-
+# trying to initialise with a species df only here, this will ignore all other sp params given individually
+    if(!is.null(spParams))
+      param@species_params <- spParams
     
     if (print_it) cat(sprintf("Creating first MizerParams object.\n"))
     param <- MizerParams(param@species_params, no_w = no_w,  w_pp_cutoff = w_pp_cutoff, max_w = max_w, min_w_pp = min_w_pp,
@@ -325,20 +331,22 @@ tic()
     if (print_it) cat(sprintf("Done\n"))
 
     # redistribute the abundance of the phenotypes more randomly
-    template <- n_init[1:no_sp,]
-    for (iSpecies in 1:no_sp) # for every species
+    if(mu > 0) # if evolution is on, to this thing
     {
-      #the total abundance is randomly distributed among all the phenotypes
-      biomRandom<- runif(initPool+1,0,1)
-      biomFrac <- biomRandom/sum(biomRandom) # that's the fraction to apply to the initial abundance to spread the biomass among phenotypes
-      position = 0
-      for(iPhen in which(param@species_params$species == iSpecies))
+      template <- n_init[1:no_sp,]
+      for (iSpecies in 1:no_sp) # for every species
       {
-        position = position + 1
-        n_init[iPhen,] <- template[iSpecies,] * biomFrac[position]
+        #the total abundance is randomly distributed among all the phenotypes
+        biomRandom<- runif(initPool+1,0,1)
+        biomFrac <- biomRandom/sum(biomRandom) # that's the fraction to apply to the initial abundance to spread the biomass among phenotypes
+        position = 0
+        for(iPhen in which(param@species_params$species == iSpecies))
+        {
+          position = position + 1
+          n_init[iPhen,] <- template[iSpecies,] * biomFrac[position]
+        }
       }
     }
-    
   }
   else 
   {
@@ -384,9 +392,7 @@ tic()
   interactionSave <- param@interaction # save the interaction matrix at the begining of the simulation
   
   # need to check temperature format
-  if(is.na(temperature)) temperature = param@t_ref
-  if (length(temperature) == 1 && !is.na(temperature)) temperature = rep(temperature, times = t_max*no_run/dt)
-
+  if (length(temperature) == 1) temperature = rep(temperature, times = t_max*no_run/dt)
     for(j in firstRun:no_run){
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
@@ -394,7 +400,8 @@ tic()
     
     # Select the right temperature vector for the run/ must be t_max length
     temperature_vec <- temperature[seq(((j-1)*t_max/dt+1),j*t_max/dt)]
-    if (print_it && !is.na(temperature) && Trait == "temperature")
+
+    if (print_it && temperature[1] != t_ref)
       {cat(sprintf("temperature for the run:\n"))
     print(temperature_vec)}
     

@@ -73,7 +73,7 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) {
     # idx_sp are the index values of object@w_full such that
     # object@w_full[idx_sp] = object@w
     idx_sp <- (length(object@w_full) - length(object@w) + 1):length(object@w_full)
-    
+
     # If the feeding kernel does not have a fixed predator/prey mass ratio
     # then the integral is not a convolution integral and we can not use fft.
     # In this case we use the code from mizer version 0.3
@@ -105,9 +105,8 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) {
     # we have, for our predator species i, that prey[k] equals
     # the sum over all species j of fish, of theta_{i,j}*N_j(wFull[k])
     prey[, idx_sp] <- object@interaction %*% n
-    
-    
-    # rom
+
+        # rom
     # a <- interactionTemperature(object = object, intakeScalar = intakeScalar)
     # prey[, idx_sp] <- a * n
  
@@ -129,6 +128,8 @@ getAvailEnergy <- function(object, n, n_pp, n_bb, n_aa) { #}, intakeScalar) {
 
     ## now we should be able to simply add prey matrix (which includes species) and prey_backgr matrix without needing a sweep
     prey_all <- prey + prey_backgr
+    
+
     # The vector f2 equals everything inside integral (3.4) except the feeding
     # kernel phi_i(w_p/w).
     
@@ -919,7 +920,8 @@ getMort <- function(object, n, n_pp, n_bb, n_aa, effort, intakeScalar, metScalar
              nrow(object@species_params), ") x no. size bins (",
              length(object@w), ")")
     }
-    return(m2 + object@mu_b*morScalar + getFMort(object, effort = effort) + getSMort(object, n=n, n_pp=n_pp, n_bb = n_bb, n_aa = n_aa, e = e, metScalar = metScalar) + getSenMort(object, n = n)) 
+    return(m2 + object@mu_b*morScalar + getFMort(object, effort = effort) + 
+             getSMort(object, n=n, n_pp=n_pp, n_bb = n_bb, n_aa = n_aa, e = e, metScalar = metScalar))# + getSenMort(object, n = n)) 
 }
 
 #' Alias for getMort
@@ -1004,7 +1006,6 @@ getSMort <- function(object, n, n_pp, n_bb, n_aa, intakeScalar, metScalar,
             }
 
         mu_S <- e # assign net energy to the initial starvation mortality matrix
-
         x <- t(t(mu_S)/(0.1*object@w)) # apply the mortality formula to the whole matrix
         #remember, 0.1 is a parameter here, which is a scaling constant on how negative e translates to starvation mortality. For a 100g fish with a negative e of -1, it will give starvation value of 0.1. For a 10 g fish with e of -1, it will give mortality of 1. This seems reasonable for a start, but a more conmplex relationship could be explored in the future 
         mu_S[mu_S<0] <- x[x<0] # replace the negative values of e by the starvation mortality
