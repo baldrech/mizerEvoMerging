@@ -110,7 +110,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
                     diet_steps=10,
                     #RF ####
                     mu = 1, resident = NULL, extinct = TRUE, RMAX = TRUE, prevSim = NULL,
-                    OptMutant = "M1", M3List = NULL, checkpoint, print_it = TRUE, predMort = NULL,
+                    OptMutant = "M5", M3List = NULL, checkpoint, print_it = TRUE, predMort = NULL,
                     ...) {  #default number of years (steps?) to calcualte diet for 
     # validObject(params)
   umbrella = FALSE # parameter that says if there are still things alive # might get rid of it
@@ -203,7 +203,7 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     morTempScalar <- array(NA, dim = c(dim(params@species_params)[1], length(params@w), length(temperature_dt)), dimnames = list(params@species_params$species,params@w,temperature_dt)) 
     intTempScalar <- array(NA, dim = c(dim(params@species_params)[1], length(params@w), length(temperature_dt)), dimnames = list(params@species_params$species,params@w,temperature_dt)) 
     
-    for(iSpecies in 1:dim(params@species_params)[1]) # fill the scalars arrays
+        for(iSpecies in 1:dim(params@species_params)[1]) # fill the scalars arrays
     {
       metTempScalar[iSpecies,,] <-  tempFun(temperature = temperature_dt[,1], t_ref = params@t_ref, t_d = params@species_params$t_d[iSpecies], 
                                             Ea = params@species_params$ea_met[iSpecies], 
@@ -276,11 +276,13 @@ project <- function(params, effort = 0,  t_max = 100, dt = 0.1, t_save=1,
     
     #create a matrix for diet comparison. For prey it has the number of columns set at no_sp+3 because we have 3 background spectra
     # commenting as takes lots of time to compute somehow RF
-    # sim@diet_comp<-array(0, c(no_sp, no_w, no_sp + 3, no_w_full), 
-                         # dimnames=list( predator=as.character(params@species_params$species), pred_size = params@w, 
-                         #                prey = c(as.character(params@species_params$species), "plankton", "benthos", "algae"),
-                         #                prey_size = params@w_full))
-    
+    if(diet_steps >0)
+    {
+    sim@diet_comp<-array(0, c(no_sp, no_w, no_sp + 3, no_w_full),
+    dimnames=list( predator=as.character(params@species_params$species), pred_size = params@w,
+                   prey = c(as.character(params@species_params$species), "plankton", "benthos", "algae"),
+                   prey_size = params@w_full))
+    }
     
     # Matrices for solver
     A <- matrix(0, nrow = no_sp, ncol = no_w)
