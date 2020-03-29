@@ -965,10 +965,13 @@ getEReproAndGrowth <- function(object, n, n_pp, n_bb, n_aa, intakeScalar, metSca
              length(object@w), ")")
     }
     # assimilated intake
-    e <- sweep(feeding_level * object@intake_max * intakeScalar, 1,
-               object@species_params$alpha, "*", check.margin = FALSE)
-    # Subtract metabolism
+    e <- sweep(feeding_level * object@intake_max * intakeScalar, 1, object@species_params$alpha, "*", check.margin = FALSE)
+               #object@species_params$alpha /((1+log10(object@species_params$beta))/3) , "*", check.margin = FALSE) # add a weight inversilely proportionel to beta 
+    
+               # Subtract metabolism
     e <- e - (object@metab * metScalar)
+    
+    # e<- e - sweep(object@metab * metScalar,1, object@species_params$beta/100,"*") # metabolism increase with beta, cost for hunting small and large amount
     # in order to apply starvation mortality we need to return the actual positive or negative e here
     #e[e < 0] <- 0 # Do not allow negative growth
     return(e)
@@ -1327,7 +1330,7 @@ getDietComp<- function(object, n,  n_pp, n_bb, n_aa, intakeScalar, diet_comp_all
   b_algae <- sweep(b_algae, c(1,2), feedinglevel,"*") # Scale according to feeding level. Prey eaten: g prey / year / g predator
   b_algae_tot<-sweep(b_algae,c(1,2), b_tot, "*") # Prey eaten: total g prey/ year  (given predator biomass density)
   
-  # Hany indices 
+  # Handy indices 
   no_w<- dim(n)[2]
   no_sp<- dim(n)[1]
   
@@ -1399,7 +1402,8 @@ tempFun <- function(w, temperature, t_d = 25, t_ref, Ea, c_a, Ed = 0, c_d = 0) #
 
   
  
-  temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *exp((-Ea/k)*((1/temperature) - (1/(t_ref)))))
+  temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature-(t_ref)))}) *
+                           exp((-Ea/k)*((1/temperature) - (1/(t_ref)))))
 
   
   return(temperatureScalar)
