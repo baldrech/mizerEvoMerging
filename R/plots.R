@@ -2199,7 +2199,7 @@ plotFitness <- function(object, save_it = F, print_it = T, returnData = F, SpIdx
   
 }
 
-plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size = NULL, ylim = c(NA,NA),
+plotTemperature <- function(object, temperature = seq(1,30,.2), iSpecies = 1, size = NULL, ylim = c(NA,NA),
                             f0 = object@params@f0, netEnergy = F,
                             save_it = F, print_it = T, returnData = F, 
                             plotName = "thermotoleranceTemp.png", plotTitle = "thermotolerance")
@@ -2244,8 +2244,8 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
   myData <- data.frame("temperature" = temperature, "intake" = intakeScalar[size,], "metabolism" = metabScalar[size,], "netEnergy" = netE_dat)
   
   # myData <- data.frame("temperature" = temperature-273, "scalar" = temperatureScalar[20,])
-  t_ref <- object@params@species_params$t_d[iSpecies] - (5 + 0.4*object@params@species_params$t_d[iSpecies] )
-  
+  t_ref <- object@params@species_params$t_d[iSpecies] - (5 + 0.25*object@params@species_params$t_d[iSpecies] )
+
   p1 <- ggplot(myData)+
     geom_line(aes(x = temperature, y = intake), color = "blue")+
     geom_line(aes(x = temperature, y = metabolism), color = "red")+
@@ -2263,7 +2263,7 @@ plotTemperature <- function(object, temperature = seq(1,30), iSpecies = 1, size 
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(plotTitle)
   
-  if(netEnergy) p <- p + geom_line(aes(x = temperature, y = netEnergy), color = "green")
+  if(netEnergy) p1 <- p1 + geom_line(aes(x = temperature, y = netEnergy), color = "green")
   
   if(save_it) ggsave(p1, file = plotName, scale = 1.5)
   
@@ -2633,7 +2633,21 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
                                      td = NULL, ed = NULL, ea = NULL, tref = NULL, save_it = F, print_it = T, returnData = F, 
                                      plotName = "traitThermoToleranceTemp.png", plotTitle = "trait thermotolerance", plotEnergy = T)
 {
-  # object <- get(load("romainZone/temperate/run2/run.Rdata"))
+# use this temperature function where you need to give everything
+  tempFunTest <- function(w, temperature, t_d, t_ref, Ea, c_a, Ed, c_d) # default are 0 for now as deactivation is buggy
+  {
+    k = 8.617332e-5 # Boltzmann constant 
+    # converting to Kelvin from Celcius
+    temperature <- temperature + 273 
+    t_ref <- t_ref + 273
+    t_d <- t_d + 273
+  
+    temperatureScalar <- t(sapply(w,FUN = function(x){x^(c_a*(temperature - t_ref))}) * exp(-Ea/k*(1/temperature - 1/t_ref)   )) *
+      t(1/(sapply(w,FUN = function(x){x^(c_d*(temperature - t_d  ))}) *(exp(-Ed/k*(1/temperature - 1/t_d)) + 1)))*
+      sapply(w,FUN = function(x){x^(c_d*(t_ref       - t_d  ))}) *(exp(-Ed/k*(1/t_ref       - 1/t_d)) + 1) 
+    
+    return(temperatureScalar)
+  }
   
   
   if(is.null(td)) t_d <- object@params@species_params$t_d[iSpecies]
@@ -2652,15 +2666,15 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
            for(var in ed_int)
            {
              if(is.null(ea)) ea_int <- object@params@species_params$ea_int[iSpecies]
-             # else ea_int <- ea(var)
-             else ea_int <- ea
+             else ea_int <- ea(var)
+             # else ea_int <- ea
              if(is.null(tref)) t_ref <- object@params@t_ref
              else t_ref <- tref(t_d)
-             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
+             intakeScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
                                      Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
                                      Ed = var, c_d = object@params@species_params$cd_int[iSpecies])
              
-             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
+             metabScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
                                     Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
                                     Ed = var, c_d = object@params@species_params$cd_met[iSpecies])
              
@@ -2687,11 +2701,11 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
              if(is.null(tref)) t_ref <- object@params@t_ref
              else t_ref <- tref(t_d)
              
-             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
+             intakeScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d , 
                                      Ea = var, c_a = object@params@species_params$ca_int[iSpecies], 
                                      Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
              
-             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
+             metabScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = t_d,
                                     Ea = var, c_a = object@params@species_params$ca_met[iSpecies],
                                     Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
              
@@ -2720,11 +2734,11 @@ plotEnergyperTemperature <- function(object,trait,ylim = c(NA,NA), iSpecies = 5,
              if(is.null(tref)) t_ref <- object@params@t_ref
              else t_ref <- tref(var)
              
-             intakeScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = var , 
+             intakeScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = var , 
                                      Ea = ea_int, c_a = object@params@species_params$ca_int[iSpecies], 
                                      Ed = ed_int, c_d = object@params@species_params$cd_int[iSpecies])
              
-             metabScalar <- tempFun(w = size, temperature = temperature, t_ref = t_ref , t_d = var,
+             metabScalar <- tempFunTest(w = size, temperature = temperature, t_ref = t_ref , t_d = var,
                                     Ea = ea_int, c_a = object@params@species_params$ca_met[iSpecies],
                                     Ed = ed_int, c_d = object@params@species_params$cd_met[iSpecies])
              
