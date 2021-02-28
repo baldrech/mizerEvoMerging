@@ -56,6 +56,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     initPool = 0,
                     tau = 7, # exponent in psi function
                     interactionOne = 0.5, # to set_up interaction with one parameter
+                    NparamExtinct = NULL, #keeps in memory extinct species across sims
                     interaction = matrix(interactionOne,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the interactionOne param
                     diet_steps = 0, # for the diet thing
                     # extension
@@ -68,8 +69,8 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     r_aa = 2,
                     min_w_aa = 1e-10,  
                     w_aa_cutoff = 100,
-                    t_ref = 10,
                     t_d = 25,
+                    t_ref = t_d - (5 + 0.25*t_d),
                     temperature = t_ref,
                     ea_met = NA,
                     ca_met = NA,
@@ -192,7 +193,7 @@ tic()
     
     # Kick start the abundance
     if (print_it) cat(sprintf("Initialisation of the simulation, please wait.\n"))
-    initBio <- project(param, t_max = initTime, extinct = FALSE, OptMutant="yo", RMAX = RMAX, diet_steps = 0) # init abundance
+    initBio <- project(param, t_max = initTime, extinct = FALSE, OptMutant="yo", RMAX = RMAX, diet_steps = 0, temperature = param@t_ref) # init abundance
     #initBio <- project(param, t_max = 1, extinct = FALSE, OptMutant="yo", RMAX = T) # init abundance
     n_init <- initBio@n[dim(initBio@n)[1],,]
     n_pp_init <- initBio@n_pp[dim(initBio@n_pp)[1],]
@@ -211,7 +212,7 @@ tic()
         {
           mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
-          
+
           switch(Trait,
                  size = {
                    # Trait = asymptotic size
@@ -224,26 +225,33 @@ tic()
                    # Trait = PPMR
                    sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
                    mutant$beta <- abs(mutant$beta + rnorm(1, 0, sd)) # change a bit the PPMR
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                   mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                   while(mutant$beta < 10) mutant$beta <-  abs(mutant$beta + rnorm(1, 0, sd))
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2) *   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
+                   # mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  sigma = {
                    # Trait = fedding kernel
                    sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
                    mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   while(mutant$sigma < .5 | mutant$sigma > 5)  mutant$sigma <-  abs(mutant$sigma + rnorm(1, 0, sd))
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  predation = {
                    # PPMR
                    sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
                    mutant$beta <- abs(mutant$beta + rnorm(1, 0, sd)) # change a bit the PPMR
+                   while(mutant$beta < 10) mutant$beta <-  abs(mutant$beta + rnorm(1, 0, sd))
                    # feeding kernel
                    sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
                    mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
+                   while(mutant$sigma < .5 | mutant$sigma >5 )  mutant$sigma <-  abs(mutant$sigma + rnorm(1, 0, sd))
                    # recalculate gamma if necessary
-                   # alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                   # mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*
+                   (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
+                   mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  eta = {
                    # Trait = eta
@@ -282,7 +290,9 @@ tic()
                    sd = as.numeric(mAmplitude * initSpread * param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
                    mutant$sigma <- abs(mutant$sigma + rnorm(1, 0, sd)) # change a bit the diet breadth
                    # calculate the new gamma
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
+                   
                    mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
                  },
                  {
@@ -290,9 +300,9 @@ tic()
                  })
           
           # integrate the mutant in the df 
+
           rownames(mutant) = mutant$ecotype
           param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
-          
           #updatenameList
           nameList = param@species_params$ecotype
           
@@ -385,7 +395,6 @@ tic()
   
   # need to check temperature format
   if (length(temperature) == 1) temperature = rep(temperature, times = t_max*no_run/dt)
-
     for(j in firstRun:no_run){
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
@@ -393,6 +402,7 @@ tic()
     
     # Select the right temperature vector for the run/ must be t_max length
     temperature_vec <- temperature[seq(((j-1)*t_max/dt+1),j*t_max/dt)]
+
     if (print_it && temperature[1] != t_ref)
       {cat(sprintf("temperature for the run:\n"))
     print(temperature_vec)}
@@ -400,7 +410,8 @@ tic()
     # First run without mutants
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, initial_n_aa=n_aa_init, 
                    initial_n_bb=n_bb_init, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, 
-                   checkpoint = list(j,previousTime), effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, temperature = temperature_vec) # init first step
+                   checkpoint = list(j,previousTime), effort = effort, print_it = print_it, predMort = predMort, diet_steps = diet_steps, 
+                   temperature = temperature_vec) # init first step
     
     # Post initialisation -------------------
 
@@ -451,17 +462,30 @@ tic()
                    # Trait = PPMR
                    sd = as.numeric(mAmplitude *  resident_params["beta"]) # standard deviation
                    mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd) # change a bit the PPMR
+                   while(mutant$beta < 10) 
+                     {print("need to reroll beta")
+                     mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd)
+                   }
                    # calculate the new gamma
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                   mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
-                   #cat(sprintf("Its PPMR mutes slightly.\n"))
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
+                   
+                   # mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
+                   
+                   cat(sprintf("parent beta:%f, gamma:%f\n",resident_params$beta,resident_params$gamma))
+                   cat(sprintf("mutant beta:%f, gamma:%f\n",mutant$beta,mutant$gamma))
+                   # cat(sprintf("Its PPMR is:%f\n",mutant$beta))
                  },
                  sigma = {
                    # Trait = fedding kernel
                    sd = as.numeric(mAmplitude *  resident_params["sigma"]) # standard deviation
                    mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd) # change a bit the diet breadth
+                   while(mutant$sigma < .5 | mutant$sigma > 5) 
+                   {print("need to reroll sigma")
+                     mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd)}
                    # calculate the new gamma
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
                    mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
                    #cat(sprintf("Its diet breadth mutes slightly.\n"))
                  },
@@ -469,12 +493,21 @@ tic()
                    # PPMR
                    sd = as.numeric(mAmplitude *  resident_params["beta"]) # standard deviation
                    mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd) # change a bit the PPMR
+                   while(mutant$beta < 10) 
+                   {print("need to reroll beta")
+                     mutant["beta"] <- resident_params["beta"] + rnorm(1, 0, sd)}
                    # feeding kernel
                    sd = as.numeric(mAmplitude *  resident_params["sigma"]) # standard deviation
                    mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd) # change a bit the diet breadth
+                   while(mutant$sigma < .5 | mutant$sigma >5) 
+                   {print("need to reroll sigma")
+                     mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd)}
                    # recalculate gamma if necessary
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
                    mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
+                   cat(sprintf("parent beta:%f, sigma:%f, gamma:%f\n",resident_params$beta,resident_params$sigma,resident_params$gamma))
+                   cat(sprintf("mutant beta:%f, sigma:%f, gamma:%f\n",mutant$beta,mutant$sigma,mutant$gamma))
                  },
                  eta = {
                    # Trait = eta
@@ -515,7 +548,8 @@ tic()
                    sd = as.numeric(mAmplitude *  resident_params["sigma"]) # standard deviation
                    mutant["sigma"] <- resident_params["sigma"] + rnorm(1, 0, sd) # change a bit the diet breadth
                    # calculate the new gamma
-                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)*   
+                     (pnorm(3 - (lambda - 2) * mutant$sigma) + pnorm(log(mutant$beta)/mutant$sigma + (lambda - 2) * mutant$sigma) - 1)
                    mutant["gamma"] <- h * f0 / (alpha_e * kappa * (1 - f0))
                    #cat(sprintf("Its traits mute slightly.\n"))
                  },
@@ -527,6 +561,10 @@ tic()
           
           # I need to specify the name myself as the dataframe way is not consistant and subject to errors. It will work as long as a parent has less than 1e5 mutants
           rownames(mutant) = mutant$ecotype
+          # cat(sprintf("R"))
+          # print(resident_params[c(1:10,35,40,44)])
+          # cat(sprintf("M"))
+          # print(mutant[c(1:10,35,40,44)])
           sim$data@params@species_params <- rbind(sim$data@params@species_params, mutant) #include the mutant in the dataframe
           #need to update some suff now that there is one more sp
           no_sp = no_sp + 1
