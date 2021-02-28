@@ -46,7 +46,7 @@ biom <-function(object,phenotype=T)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
-finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T)
+finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T, light = F)
 {
   ## processing data
   if (print_it) cat("Data handling\n")
@@ -82,6 +82,8 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
   
   names(dimnames(biom)) = list("time", "species", "size")
   dimnames(biom)$time = seq(1, timeMax)*dt
+  
+  if (print_it) cat("Biomass done\n")
 
   # I have to do the phyto aussi
   phyto <- do.call(abind, c(lapply(sim, function(isim)
@@ -99,6 +101,8 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
     isim@n_bb[-1,]), along = 1))
  names(dimnames(benthos)) = list("time", "size")
  dimnames(benthos)$time = seq(1, timeMax)*dt
+ 
+ if (print_it) cat("Backgrounds done\n")
   
   # taking care of the effort
   effort <- do.call(rbind, lapply(sim, function(isim)
@@ -107,15 +111,22 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
   names(dimnames(effort)) = list("time", "knife_edge_gear")
   dimnames(effort)$time = seq(1, timeMax)*dt
   
+  if (print_it) cat("Effort done\n")
   # reconstruct the mizer object
   sim = template
   sim@params = SummaryParams
   sim@n = biom
   sim@effort = effort
   sim@n_pp = phyto
+  if(light)
+  {
+    sim@n_aa <- array(0,dim = c(1,1))
+    sim@n_bb <- array(0,dim = c(1,1))
+  } else {
   sim@n_aa <- algea
   sim@n_bb <- benthos
-  
+  }
+  if (print_it) cat("Sim object biomasses reconstitued\n")
   # need to update the scalar matrices too
   # time_temperature_dt <- rep(temperature, length = sim@params@species_params$timeMax[1], each = 1/dt) # works if t_max = length(temperature)
   # x_axis <- seq(length.out=sim@params@species_params$timeMax[1],from =1)   # = time vector
@@ -125,7 +136,8 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
 
   temperature_dt <- matrix(time_temperature_dt, dimnames = list(x_axis, "temperature"))
   
-  
+  if (light == F)
+  {
   # arrays with scalar values for all time, species and size
   metTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
   matTempScalar <- array(NA, dim = c(dim(sim@params@species_params)[1], length(sim@params@w), length(temperature_dt)), dimnames = list(sim@params@species_params$species,sim@params@w,temperature_dt)) 
@@ -163,7 +175,17 @@ finalTouch <- function(result, temperature, previousTime, dt = 0.1, print_it = T
   sim@matTempScalar <- matTempScalar
   sim@morTempScalar <- morTempScalar
   sim@intTempScalar <- intTempScalar
+  } else {
+    sim@metTempScalar <- array(0,dim = c(1,1))
+    sim@matTempScalar <- array(0,dim = c(1,1))
+    sim@morTempScalar <- array(0,dim = c(1,1))
+    sim@intTempScalar <- array(0,dim = c(1,1))
+    
+  }
+  
+  
   sim@temperature <- temperature_dt
+  if (print_it) cat("Temperature done\n")
   
   rm(list = "biom", "phyto", "effort", "metTempScalar","matTempScalar","morTempScalar","intTempScalar")
   gc()
@@ -481,16 +503,19 @@ multiRun <- function(no_sim, no_sp, t_max, mu, no_run,min_w_inf, max_w_inf, effo
 
 
 # to lighten the size of the sims
-superOpt <- function(object, opt = 10) # optimise the run to make them lighter
+superOpt <- function(object, opt = 10, light = F) # optimise the run to make them lighter
 {
   object@n = object@n[seq(10,dim(object@n)[1],opt),,]
   object@n_pp = object@n_pp[seq(10,dim(object@n_pp)[1],opt),]
+  if (light == F)
+  {
   object@n_aa = object@n_aa[seq(10,dim(object@n_aa)[1],opt),]
   object@n_bb = object@n_bb[seq(10,dim(object@n_bb)[1],opt),]
   object@metTempScalar = object@metTempScalar[,,seq(10,dim(object@metTempScalar)[3],opt)]
   object@matTempScalar = object@matTempScalar[,,seq(10,dim(object@matTempScalar)[3],opt)]
   object@morTempScalar = object@morTempScalar[,,seq(10,dim(object@morTempScalar)[3],opt)]
   object@intTempScalar = object@intTempScalar[,,seq(10,dim(object@intTempScalar)[3],opt)]
+  }
   
   nameTemp <- names(dimnames(object@effort))
   object@effort = as.matrix(object@effort[seq(10,dim(object@effort)[1],opt),])
@@ -1070,5 +1095,51 @@ optimisation <- function(sim, keep = 2)
   sim@effort = sim@effort[seq(1,dim(sim@effort)[1],keep),]
   
   return(sim)
+}
+
+# Multiple plot function ------------
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
 }
 

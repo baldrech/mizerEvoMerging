@@ -90,6 +90,7 @@ myModel <- function(no_sp = 9, # number of species #param described in Andersen 
                     avail_PP = 1,
                     avail_BB = 0,
                     avail_AA = 0,
+                    light = F,
                     ...){
 tic()
   
@@ -109,6 +110,7 @@ tic()
     firstRun = 1
     NparamExtinct <- NULL
     s_max = no_run * t_max / dt
+    
     # I'm deleting all the default from this function so it uses only the ones in myModel
     if (is.null(param))
       param <- set_trait_model(no_sp = no_sp, 
@@ -707,9 +709,9 @@ tic()
                               interaction = interactionSave)
     # handle and save the final data
     # return(list(allRun,FinalParam,temperature, previousTime))
-    sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it, previousTime = previousTime)
+    sim = finalTouch(list(allRun,FinalParam),temperature = temperature, print_it = print_it, previousTime = previousTime, light = light)
     gc()
-    sim = superOpt(sim)
+    sim = superOpt(sim, light = light)
     if (save_it)
     {
       if (is.null(path_to_save)) path_to_save = paste(getwd(),"/temporary",sep="")

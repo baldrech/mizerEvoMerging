@@ -1078,6 +1078,7 @@ multispeciesParams <- function(object, interaction,
     
     # If not provided, set min_w_pp so that all fish have their full feeding 
     # kernel inside plankton spectrum
+
     min_w_feeding <- object$w_min / object$beta / exp(3 * object$sigma)
     if (is.na(min_w_pp)) {
         min_w_pp <- min(min_w_feeding)
